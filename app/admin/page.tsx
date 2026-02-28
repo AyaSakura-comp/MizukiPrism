@@ -764,6 +764,14 @@ export default function AdminPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              data-testid="discover-nav-button"
+              onClick={() => router.push('/admin/discover')}
+              className="px-4 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90 flex items-center gap-2 text-sm"
+            >
+              <Plus size={16} />
+              匯入歌曲
+            </button>
             <a
               href="/"
               className="text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
