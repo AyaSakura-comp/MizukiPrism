@@ -114,6 +114,84 @@ export function parseVideoInfo(data: Record<string, unknown>): VideoInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Channel info extraction from video page data
+// ---------------------------------------------------------------------------
+
+export interface ChannelInfo {
+  channelId: string;
+  author: string;
+  handle: string | null;
+}
+
+export function extractChannelInfo(data: Record<string, unknown>): ChannelInfo {
+  const details = (data as any).videoDetails || {};
+  const microformat = (data as any).microformat?.playerMicroformatRenderer || {};
+  let handle: string | null = null;
+  const ownerUrl = microformat.ownerProfileUrl || '';
+  const handleMatch = ownerUrl.match(/@([A-Za-z0-9_.-]+)/);
+  if (handleMatch) handle = `@${handleMatch[1]}`;
+  return { channelId: details.channelId || '', author: details.author || '', handle };
+}
+
+// ---------------------------------------------------------------------------
+// Channel profile scraping
+// ---------------------------------------------------------------------------
+
+export interface ChannelProfile {
+  channelId: string;
+  handle: string;
+  displayName: string;
+  avatarUrl: string;
+  description: string;
+  socialLinks: Record<string, string>;
+}
+
+export async function fetchChannelProfile(channelId: string): Promise<ChannelProfile> {
+  const url = `https://www.youtube.com/channel/${channelId}`;
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+    },
+  });
+  const html = await res.text();
+  const dataMatch = html.match(/var ytInitialData\s*=\s*(\{.+?\});\s*<\/script/s)
+    || html.match(/ytInitialData\s*=\s*(\{.+?\});\s*<\/script/s);
+  if (!dataMatch) return { channelId, handle: '', displayName: '', avatarUrl: '', description: '', socialLinks: {} };
+  const pageData = JSON.parse(dataMatch[1]);
+  return parseChannelProfile(pageData, channelId);
+}
+
+export function parseChannelProfile(data: any, channelId: string): ChannelProfile {
+  const profile: ChannelProfile = { channelId, handle: '', displayName: '', avatarUrl: '', description: '', socialLinks: {} };
+  const meta = data?.metadata?.channelMetadataRenderer || {};
+  profile.description = meta.description || '';
+
+  const c4 = data?.header?.c4TabbedHeaderRenderer;
+  if (c4) {
+    profile.displayName = c4.title || '';
+    const thumbnails = c4.avatar?.thumbnails || [];
+    profile.avatarUrl = thumbnails.length > 0 ? thumbnails[thumbnails.length - 1].url : '';
+    profile.handle = c4.channelHandleText?.simpleText || '';
+    return profile;
+  }
+
+  const phr = data?.header?.pageHeaderRenderer?.content?.pageHeaderViewModel;
+  if (phr) {
+    profile.displayName = phr.title?.dynamicTextViewModel?.text?.content || '';
+    const avatarSources = phr.image?.decoratedAvatarViewModel?.avatar?.avatarViewModel?.image?.sources || [];
+    profile.avatarUrl = avatarSources.length > 0 ? avatarSources[avatarSources.length - 1].url : '';
+    const metadataRows = phr.metadata?.contentMetadataViewModel?.metadataRows || [];
+    if (metadataRows.length > 0) {
+      const handleText = metadataRows[0]?.metadataParts?.[0]?.text?.content || '';
+      if (handleText.startsWith('@')) profile.handle = handleText;
+    }
+  }
+
+  return profile;
+}
+
+// ---------------------------------------------------------------------------
 // Comment fetching via innertube API
 // ---------------------------------------------------------------------------
 
