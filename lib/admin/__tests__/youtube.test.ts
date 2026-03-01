@@ -41,11 +41,14 @@ describe('parseVideoInfo', () => {
 0:04:23 誰 / 李友廷
 0:08:26 Shape of You / Ed Sheeran`,
         lengthSeconds: '7200',
+        channelId: 'UC1234567890abcdef',
+        author: '浠Mizuki',
       },
       microformat: {
         playerMicroformatRenderer: {
           uploadDate: '2025-03-26',
           publishDate: '2025-03-26',
+          ownerProfileUrl: 'https://www.youtube.com/@MizukiChannel',
         },
       },
     };
@@ -59,6 +62,9 @@ describe('parseVideoInfo', () => {
 0:04:23 誰 / 李友廷
 0:08:26 Shape of You / Ed Sheeran`,
       durationSeconds: 7200,
+      channelId: 'UC1234567890abcdef',
+      channelName: '浠Mizuki',
+      channelHandle: '@MizukiChannel',
     });
   });
 });

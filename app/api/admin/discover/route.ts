@@ -3,6 +3,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { extractVideoId, fetchVideoPage, parseVideoInfo } from '@/lib/admin/youtube';
+import { readStreamers, findStreamerByChannelId } from '@/lib/admin/data-writer';
+import path from 'path';
+
+const DATA_DIR = path.join(process.cwd(), 'data');
 
 export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV !== 'development') {
@@ -22,7 +26,14 @@ export async function POST(request: NextRequest) {
     const pageData = await fetchVideoPage(videoId);
     const videoInfo = parseVideoInfo(pageData);
 
-    return NextResponse.json(videoInfo);
+    const streamers = readStreamers(DATA_DIR);
+    const existingStreamer = findStreamerByChannelId(streamers, videoInfo.channelId);
+
+    return NextResponse.json({
+      ...videoInfo,
+      isNewStreamer: !existingStreamer,
+      existingStreamer: existingStreamer || null,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: `Failed to fetch video info: ${err}` },

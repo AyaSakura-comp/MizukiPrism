@@ -7,6 +7,9 @@ export interface VideoInfo {
   date: string;        // YYYY-MM-DD
   description: string;
   durationSeconds: number;
+  channelId: string;
+  channelName: string;
+  channelHandle: string | null;
 }
 
 export interface Comment {
@@ -104,12 +107,20 @@ export function parseVideoInfo(data: Record<string, unknown>): VideoInfo {
   const rawDate = microformat.uploadDate || microformat.publishDate || '';
   const date = rawDate.slice(0, 10); // YYYY-MM-DD
 
+  let handle: string | null = null;
+  const ownerUrl = microformat.ownerProfileUrl || '';
+  const handleMatch = ownerUrl.match(/@([A-Za-z0-9_.-]+)/);
+  if (handleMatch) handle = `@${handleMatch[1]}`;
+
   return {
     videoId: details.videoId || '',
     title: details.title || '',
     date,
     description: details.shortDescription || '',
     durationSeconds: parseInt(details.lengthSeconds || '0', 10),
+    channelId: details.channelId || '',
+    channelName: details.author || '',
+    channelHandle: handle,
   };
 }
 
