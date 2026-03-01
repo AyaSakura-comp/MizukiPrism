@@ -11,6 +11,11 @@ interface VideoInfo {
   date: string;
   description: string;
   durationSeconds: number;
+  channelId: string;
+  channelName: string;
+  channelHandle: string | null;
+  isNewStreamer: boolean;
+  existingStreamer: any | null;
 }
 
 interface ExtractedSong {
@@ -42,6 +47,10 @@ export default function DiscoverPage() {
   const [manualMode, setManualMode] = useState(false);
   const [manualTitle, setManualTitle] = useState('');
   const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0, 10));
+  const [isNewStreamer, setIsNewStreamer] = useState(false);
+  const [streamerProfile, setStreamerProfile] = useState<any>(null);
+  const [showStreamerConfirm, setShowStreamerConfirm] = useState(false);
+  const [channelId, setChannelId] = useState<string>('');
 
   // Auth check
   useEffect(() => {
@@ -64,8 +73,37 @@ export default function DiscoverPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setVideoInfo(data);
+      setChannelId(data.channelId || '');
+
+      if (data.isNewStreamer && data.channelId) {
+        // Fetch channel profile for confirmation
+        const profileRes = await fetch('/api/admin/streamer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channelId: data.channelId, action: 'fetch' }),
+        });
+        const profile = await profileRes.json();
+        setStreamerProfile(profile);
+        setShowStreamerConfirm(true);
+      } else {
+        setStep('extracting');
+        handleExtract(data.videoId);
+      }
+    } catch (err) {
+      setError(String(err));
+    }
+  }
+
+  async function handleConfirmStreamer() {
+    try {
+      await fetch('/api/admin/streamer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...streamerProfile, action: 'save' }),
+      });
+      setShowStreamerConfirm(false);
       setStep('extracting');
-      handleExtract(data.videoId);
+      handleExtract(videoInfo!.videoId);
     } catch (err) {
       setError(String(err));
     }
@@ -134,6 +172,11 @@ export default function DiscoverPage() {
         date: manualDate,
         description: '',
         durationSeconds: 0,
+        channelId: '',
+        channelName: '',
+        channelHandle: null,
+        isNewStreamer: false,
+        existingStreamer: null,
       });
       setSongs(data.songs || []);
       setExtractionSource('text');
@@ -157,6 +200,7 @@ export default function DiscoverPage() {
           title: videoInfo.title,
           date: videoInfo.date,
           youtubeUrl: `https://www.youtube.com/watch?v=${videoInfo.videoId}`,
+          channelId,
           songs: songs.map((s) => ({
             songName: s.songName,
             artist: s.artist,
@@ -306,6 +350,59 @@ export default function DiscoverPage() {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* New streamer confirmation */}
+        {showStreamerConfirm && streamerProfile && (
+          <div data-testid="new-streamer-confirm" className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-orange-600 flex items-center gap-2">
+              <AlertCircle size={20} />
+              偵測到新的直播主
+            </h3>
+            <div className="flex items-center gap-4">
+              {streamerProfile.avatarUrl && (
+                <img
+                  data-testid="streamer-avatar-preview"
+                  src={streamerProfile.avatarUrl}
+                  alt={streamerProfile.displayName}
+                  className="w-16 h-16 rounded-full border-2 border-pink-200"
+                />
+              )}
+              <div className="space-y-2 flex-1">
+                <div>
+                  <label className="text-xs text-gray-500">名稱</label>
+                  <input
+                    data-testid="streamer-name-input"
+                    value={streamerProfile.displayName || ''}
+                    onChange={(e) => setStreamerProfile({ ...streamerProfile, displayName: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300 text-sm"
+                  />
+                </div>
+                <p className="text-sm text-gray-500">{streamerProfile.handle || channelId}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                data-testid="confirm-streamer-button"
+                onClick={handleConfirmStreamer}
+                className="px-4 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90 flex items-center gap-2"
+              >
+                <Check size={16} />
+                確認新增
+              </button>
+              <button
+                data-testid="skip-streamer-button"
+                onClick={() => {
+                  setShowStreamerConfirm(false);
+                  setStep('extracting');
+                  handleExtract(videoInfo!.videoId);
+                }}
+                className="px-4 py-2 text-gray-500 hover:text-gray-700"
+              >
+                跳過
+              </button>
+            </div>
           </div>
         )}
 
