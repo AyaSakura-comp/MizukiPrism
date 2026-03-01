@@ -45,8 +45,10 @@ tools/mizukilens/      Python CLI for data pipeline
 
 ```bash
 npm run dev          # Dev server on localhost:3000
+npm run dev:clean    # Clear .next cache and restart (use after modifying data/*.json directly)
 npm run build        # Production build (use to verify no errors)
 npm run lint         # ESLint
+npm run test:unit    # Vitest unit tests (lib/admin/__tests__/)
 npx playwright test  # E2E tests (requires dev server running)
 ```
 
@@ -96,21 +98,47 @@ The Python venv is at `tools/mizukilens/.venv/`. Use `.venv/bin/python3` to run 
 - **Metadata lifecycle**: CLI fetches from Deezer/LRCLIB → writes JSON → commit → deploy → fans see it. `manual` status entries are never auto-overwritten unless `--force`.
 - **AlbumArt** component is reusable across 5 UI positions (song list, mini player desktop/mobile, now playing modal, queue panel).
 
-## E2E Testing Verification Flow
+## Testing & Verification
+
+### Unit Tests
+
+Run `npm run test:unit` for Vitest tests in `lib/admin/__tests__/`. These cover extraction, YouTube parsing, data-writer, metadata, and git services. All use mock data — no live API calls.
+
+### E2E Tests
+
+Playwright tests live in `tests/*.spec.ts`. Key test files:
+- `tests/admin-discover.spec.ts` — manual paste import flow (AC1/AC2/AC3)
+- `tests/admin-kirali-import.spec.ts` — full auto-import from YouTube comments
+- `tests/admin-stamp.spec.ts` — timestamp marking UI
+- `tests/admin-regression.spec.ts` — before/after fan-facing regression
+- `tests/core-001.spec.ts` — core fan-facing page
+
+### E2E Video Recording & Verification Flow
 
 When adding or modifying UI features, verify changes with permanent E2E video recordings:
 
 1. **Configuration**: Confirm `playwright.config.ts` has `video: 'on'` and `outputDir: 'test-results'`.
-2. **Start Dev Server**: Ensure the Next.js development server is running (`npm run dev`).
+2. **Start Dev Server**: Use `npm run dev` (or `npm run dev:clean` if data files were modified directly).
 3. **Run Playwright Test(s)**: Execute the specific E2E test file (e.g., `npx playwright test tests/admin-discover.spec.ts`).
-4. **Export Videos**: Copy/Move the recorded `.webm` files from `test-results/` to a dedicated `videos/` folder. Rename them to descriptive names (e.g., `verify-admin-api.webm`). **Do not delete these videos after creation.**
-5. **Visual Verification**: Use the `verify-video` skill (or `compare-before-after-with-video` for regressions) to send the `.webm` to Gemini CLI for automated analysis. Confirm:
-   - Successful user flow (e.g., login, navigation, data extraction).
-   - No build errors or red error overlays are visible.
-   - UI elements match the expected styling and data.
+4. **Export Videos**: Copy the recorded `.webm` files from `test-results/` to `videos/`. Rename descriptively (e.g., `verify-admin-api.webm`). **Do not delete these videos.**
+5. **Visual Verification**: Use `/verify-video` (or `/compare-before-after-with-video` for regressions) to send the `.webm` to Gemini CLI for automated analysis. Confirm:
+   - Successful user flow (login, navigation, data extraction).
+   - No build errors or red error overlays.
+   - UI elements match expected styling and data.
    - For refactors, compare against a "before" video to ensure no visual regressions.
 
 ```bash
-# Invoke the skill via Claude Code:
+# Verify a single recording:
 # /verify-video videos/my-recording.webm "Expected: login works, songs load, import succeeds"
+#
+# Compare before/after:
+# /compare-before-after-with-video videos/before.webm videos/after.webm "Verify no regressions"
+```
+
+### Cache Troubleshooting
+
+If the dev server shows errors after `data/*.json` files are modified directly (via git checkout, manual edit, etc.), the `.next` cache may be stale. Fix with:
+
+```bash
+npm run dev:clean    # Clears .next cache and restarts dev server
 ```
