@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   }
   try {
     const body = await request.json();
-    const { videoId, title, date, youtubeUrl, songs, credit } = body;
+    const { videoId, title, date, youtubeUrl, channelId, songs, credit } = body;
 
     if (!videoId || !title || !date || !youtubeUrl || !songs?.length) {
       return NextResponse.json(
@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
       title,
       date,
       youtubeUrl,
+      channelId,
       songs: songs.map((s: any) => ({
         songName: s.songName,
         artist: s.artist,

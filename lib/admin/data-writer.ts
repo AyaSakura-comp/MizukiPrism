@@ -29,6 +29,7 @@ interface Song {
 
 interface Stream {
   id: string;
+  channelId?: string;
   title: string;
   date: string;
   videoId: string;
@@ -53,6 +54,7 @@ export interface ImportRequest {
   title: string;
   date: string;
   youtubeUrl: string;
+  channelId?: string;  // links to streamer profile
   songs: ImportSong[];
   credit?: {
     author: string;
@@ -144,6 +146,7 @@ export function addStreamAndSongs(dataDir: string, request: ImportRequest): Impo
   const streamId = generateStreamId(request.date, streams);
   const newStream: Stream = {
     id: streamId,
+    channelId: request.channelId || '',
     title: request.title,
     date: request.date,
     videoId: request.videoId,
