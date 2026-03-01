@@ -95,3 +95,22 @@ The Python venv is at `tools/mizukilens/.venv/`. Use `.venv/bin/python3` to run 
 - **Lyrics lazy loading**: `song-lyrics.json` fetched only when lyrics panel opens (not at page load).
 - **Metadata lifecycle**: CLI fetches from Deezer/LRCLIB → writes JSON → commit → deploy → fans see it. `manual` status entries are never auto-overwritten unless `--force`.
 - **AlbumArt** component is reusable across 5 UI positions (song list, mini player desktop/mobile, now playing modal, queue panel).
+
+## E2E Testing Verification Flow
+
+When adding or modifying UI features, verify changes with permanent E2E video recordings:
+
+1. **Configuration**: Confirm `playwright.config.ts` has `video: 'on'` and `outputDir: 'test-results'`.
+2. **Start Dev Server**: Ensure the Next.js development server is running (`npm run dev`).
+3. **Run Playwright Test(s)**: Execute the specific E2E test file (e.g., `npx playwright test tests/admin-discover.spec.ts`).
+4. **Export Videos**: Copy/Move the recorded `.webm` files from `test-results/` to a dedicated `videos/` folder. Rename them to descriptive names (e.g., `verify-admin-api.webm`). **Do not delete these videos after creation.**
+5. **Visual Verification**: Use the `verify-video` skill (or `compare-before-after-with-video` for regressions) to send the `.webm` to Gemini CLI for automated analysis. Confirm:
+   - Successful user flow (e.g., login, navigation, data extraction).
+   - No build errors or red error overlays are visible.
+   - UI elements match the expected styling and data.
+   - For refactors, compare against a "before" video to ensure no visual regressions.
+
+```bash
+# Invoke the skill via Claude Code:
+# /verify-video videos/my-recording.webm "Expected: login works, songs load, import succeeds"
+```
