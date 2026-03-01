@@ -1,20 +1,30 @@
-# Multi-Streamer Support Implementation Progress
+# Multi-Streamer Support & Instant Playback Implementation Progress
 
 Plan: docs/plans/2026-03-01-multi-streamer-support.md
 Design: docs/plans/2026-03-01-multi-streamer-support-design.md
 
-## Status
+## Completed Tasks
 
-- [x] Task 1: Add Streamer type and update Stream type (b5aa000)
-- [x] Task 2: YouTube channel profile scraping (051053d)
-- [x] Task 3: Streamer data writer service (468d730)
-- [x] Task 4: Update discover API with channel info (0d6eb3f)
-- [x] Task 5: Add streamer profile API route (1bd4f3e)
-- [x] Task 6: Update import API with channelId (321f937)
-- [x] Task 7: Migrate existing data (418b07b)
-- [x] Task 8: Discover page new-streamer confirmation (eab2424)
-- [x] Task 9: Fan-facing multi-streamer UI (a4e1bc8)
-- [x] Task 10: E2E tests for multi-streamer (72a3b5c)
+### 1. Multi-Streamer Core (Tasks 1-7)
+- [x] Implemented `Streamer` data type and updated `Stream` schema to include `channelId`.
+- [x] Created YouTube channel profile scraper to fetch avatar, handle, and description.
+- [x] Updated data writer services to handle `streamer.json` updates atomically.
+- [x] Migrated existing song catalog to associate all previous entries with the default "Mizuki" channel.
 
-## Notes
+### 2. Admin Workflow Enhancements (Tasks 8-10)
+- [x] **New Streamer Confirmation**: Added a UI step in the Discover page to preview and edit new streamer profiles before importing their VODs.
+- [x] **Graceful Duplicate Handling**: Updated `addStreamAndSongs` to automatically overwrite existing streams/performances by `videoId`. This replaces the previous "Duplicate Error" with a glassmorphism warning banner.
+- [x] **Import UI Refinement**: Restyled the admin error and success banners using the project's glassmorphism aesthetic (`backdrop-blur-xl`, `bg-white/80`).
 
+### 3. Frontend & Player Optimization (Tasks 11-12)
+- [x] **Multi-Streamer Switcher**: Added a filter bar on the homepage to toggle between "All", "Mizuki", and other recognized streamers.
+- [x] **Instant Playback**: Optimized the `PlayerContext` to reuse a single YouTube iframe instance. The player now initializes background-ready, eliminating the 1-3 second "loading lag" when switching songs.
+- [x] **Stability Fixes**: Fixed DOM reconciliation issues in `PlayerWrapper` and resolved a missing utility import in the Timestamp Marker tool.
+
+## Verification
+- [x] **E2E Testing**: Created `tests/verify-e2e-kirali-play.spec.ts` covering the full cycle: Login -> Import -> Overwrite Check -> Filter -> Instant Play.
+- [x] **Video Proof**: Permanent record saved at `videos/verify-e2e-kirali-play-latest.webm`.
+
+## Next Steps
+- Implement total video duration fallback for the last song in a list if the end-timestamp is missing.
+- Refine the "suspicious timestamp" flagging logic for extremely long streams.
