@@ -1,5 +1,5 @@
 // lib/admin/git.ts
-'use server';
+
 // Git operations via child_process
 
 import { execSync } from 'child_process';
@@ -21,6 +21,7 @@ export interface CommitInfo {
 // ---------------------------------------------------------------------------
 
 export function parseGitStatus(output: string): GitFileStatus[] {
+  if (!output.trim()) return [];
   return output
     .split('\n')
     .filter((line) => line.trim())

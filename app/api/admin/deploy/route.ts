@@ -4,6 +4,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataStatus, getDataDiff, commitDataChanges } from '@/lib/admin/git';
 
+export const dynamic = 'force-static';
+
 const PROJECT_ROOT = process.cwd();
 
 // GET: Return current git status for data/ files

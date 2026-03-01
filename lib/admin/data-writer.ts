@@ -1,5 +1,5 @@
 // lib/admin/data-writer.ts
-'use server';
+
 // Merge new streams and songs into data/ JSON files
 
 import fs from 'fs';

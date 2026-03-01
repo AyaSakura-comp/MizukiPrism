@@ -13,6 +13,9 @@ import {
   Trash2,
   X,
   Check,
+  Clock,
+  Image as ImageIcon,
+  CloudUpload,
   AlertCircle,
   Loader2,
 } from 'lucide-react';
@@ -765,6 +768,22 @@ export default function AdminPage() {
 
           <div className="flex items-center gap-3">
             <button
+              data-testid="metadata-nav-button"
+              onClick={() => router.push('/admin/metadata')}
+              className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 flex items-center gap-2 text-sm transition-all"
+            >
+              <ImageIcon size={16} />
+              管理中繼資料
+            </button>
+            <button
+              data-testid="stamp-nav-button"
+              onClick={() => router.push('/admin/stamp')}
+              className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 flex items-center gap-2 text-sm transition-all"
+            >
+              <Clock size={16} />
+              標記時間
+            </button>
+            <button
               data-testid="discover-nav-button"
               onClick={() => router.push('/admin/discover')}
               className="px-4 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90 flex items-center gap-2 text-sm"
@@ -778,6 +797,14 @@ export default function AdminPage() {
             >
               粉絲頁面
             </a>
+            <button
+              data-testid="deploy-nav-button"
+              onClick={() => router.push('/admin/deploy')}
+              className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2 text-sm transition-all shadow-md"
+            >
+              <CloudUpload size={16} />
+              發布更改
+            </button>
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 text-sm text-slate-500 hover:text-red-500 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50"

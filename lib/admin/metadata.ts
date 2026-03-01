@@ -1,4 +1,4 @@
-'use server';
+
 // Port of tools/mizukilens/src/mizukilens/metadata.py
 
 // ---------------------------------------------------------------------------
