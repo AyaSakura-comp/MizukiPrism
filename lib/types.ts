@@ -19,10 +19,20 @@ export interface Song {
 
 export interface Stream {
   id: string;
+  channelId?: string;
   title: string;
   date: string;
   videoId: string;
   youtubeUrl: string;
+}
+
+export interface Streamer {
+  channelId: string;
+  handle: string;
+  displayName: string;
+  avatarUrl: string;
+  description: string;
+  socialLinks: Record<string, string>;
 }
 
 export interface SongMetadata {
