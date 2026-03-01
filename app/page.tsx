@@ -2,7 +2,14 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Play, Shuffle, ExternalLink, Mic2, Youtube, Twitter, Facebook, Instagram, Twitch, Sparkles, ListMusic, Clock, Heart, Disc3, ChevronDown, ChevronRight, Plus, ListPlus, X, SlidersHorizontal, User, WifiOff, ChevronLeft, MoreHorizontal, House } from 'lucide-react';
-import streamerData from '@/data/streamer.json';
+import streamersArray from '@/data/streamer.json';
+
+// Migration shim: extract first streamer, map displayName → name for backward compat
+const streamerData = {
+  ...streamersArray[0],
+  name: streamersArray[0]?.displayName ?? '',
+  subTitle: 'Official Song Archive',
+};
 import { usePlayer } from './contexts/PlayerContext';
 import { usePlaylist } from './contexts/PlaylistContext';
 import { useLikedSongs } from './contexts/LikedSongsContext';
