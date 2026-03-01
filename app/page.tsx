@@ -2,12 +2,13 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Play, Shuffle, ExternalLink, Mic2, Youtube, Twitter, Facebook, Instagram, Twitch, Sparkles, ListMusic, Clock, Heart, Disc3, ChevronDown, ChevronRight, Plus, ListPlus, X, SlidersHorizontal, User, WifiOff, ChevronLeft, MoreHorizontal, House } from 'lucide-react';
-import streamersArray from '@/data/streamer.json';
+import streamersData from '@/data/streamer.json';
+import streamsData from '@/data/streams.json';
 
-// Migration shim: extract first streamer, map displayName → name for backward compat
+// For backward compat with existing single-streamer references
 const streamerData = {
-  ...streamersArray[0],
-  name: streamersArray[0]?.displayName ?? '',
+  ...streamersData[0],
+  name: streamersData[0]?.displayName ?? '',
   subTitle: 'Official Song Archive',
 };
 import { usePlayer } from './contexts/PlayerContext';
@@ -81,6 +82,8 @@ export default function Home() {
   const [mobileTab, setMobileTab] = useState<'home' | 'search' | 'library' | 'profile'>('home');
   const [songs, setSongs] = useState<Song[]>([]);
   const [loadError, setLoadError] = useState(false);
+  const [selectedStreamers, setSelectedStreamers] = useState<string[]>([]);
+  // empty array = "All"
   // Map from songId to albumArtUrl — populated from /api/metadata
   const albumArtMapRef = useRef<Map<string, string>>(new Map());
 
@@ -243,6 +246,22 @@ export default function Home() {
     return Array.from(years).sort((a, b) => b - a);
   }, [streams]);
 
+  // Build channelId → streamer map
+  const streamerMap = useMemo(() => {
+    const map = new Map<string, typeof streamersData[0]>();
+    for (const s of streamersData) map.set(s.channelId, s);
+    return map;
+  }, []);
+
+  // Build streamId → channelId map from streams data
+  const streamChannelMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of streamsData) {
+      if ((s as any).channelId) map.set(s.id, (s as any).channelId);
+    }
+    return map;
+  }, []);
+
   const filteredStreams = useMemo(() => {
     if (selectedYears.size === 0) return streams;
     return streams.filter(s => selectedYears.has(new Date(s.date).getFullYear()));
@@ -262,13 +281,14 @@ export default function Home() {
     setSelectedStreamId(null);
   };
 
-  const hasActiveFilters = searchTerm !== '' || selectedStreamId !== null || selectedArtist !== null || selectedYears.size > 0;
+  const hasActiveFilters = searchTerm !== '' || selectedStreamId !== null || selectedArtist !== null || selectedYears.size > 0 || selectedStreamers.length > 0;
 
   const clearAllFilters = () => {
     setSearchTerm('');
     setSelectedStreamId(null);
     setSelectedArtist(null);
     setSelectedYears(new Set());
+    setSelectedStreamers([]);
   };
 
   const flattenedSongs: FlattenedSong[] = useMemo(() => {
@@ -296,9 +316,12 @@ export default function Home() {
       const matchesStream = selectedStreamId ? song.streamId === selectedStreamId : true;
       const matchesArtist = selectedArtist ? song.originalArtist === selectedArtist : true;
       const matchesYear = selectedYears.size > 0 ? selectedYears.has(new Date(song.date).getFullYear()) : true;
-      return matchesSearch && matchesStream && matchesArtist && matchesYear;
+      const matchesStreamer = selectedStreamers.length > 0
+        ? (() => { const chId = streamChannelMap.get(song.streamId || ''); return chId !== undefined && selectedStreamers.includes(chId); })()
+        : true;
+      return matchesSearch && matchesStream && matchesArtist && matchesYear && matchesStreamer;
     });
-  }, [songs, searchTerm, selectedStreamId, selectedArtist, selectedYears]);
+  }, [songs, searchTerm, selectedStreamId, selectedArtist, selectedYears, selectedStreamers, streamChannelMap]);
 
   // Grouped songs for song-grouped view
   const groupedSongs: Song[] = useMemo(() => {
@@ -313,10 +336,16 @@ export default function Home() {
         const matchesYear = selectedYears.size > 0
           ? song.performances.some(perf => selectedYears.has(new Date(perf.date).getFullYear()))
           : true;
-        return matchesSearch && matchesStream && matchesArtist && matchesYear;
+        const matchesStreamer = selectedStreamers.length > 0
+          ? song.performances.some(p => {
+              const chId = streamChannelMap.get(p.streamId || '');
+              return chId !== undefined && selectedStreamers.includes(chId);
+            })
+          : true;
+        return matchesSearch && matchesStream && matchesArtist && matchesYear && matchesStreamer;
       })
       .sort((a, b) => a.title.localeCompare(b.title, 'zh-TW'));
-  }, [songs, searchTerm, selectedStreamId, selectedArtist, selectedYears]);
+  }, [songs, searchTerm, selectedStreamId, selectedArtist, selectedYears, selectedStreamers, streamChannelMap]);
 
   const gradientText = "bg-clip-text text-transparent bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500";
 
@@ -1034,6 +1063,62 @@ export default function Home() {
               </button>
             ))}
           </div>
+
+          {/* Streamer switcher */}
+          {streamersData.length > 1 && (
+            <div data-testid="streamer-switcher" className="flex items-center gap-1.5 flex-wrap px-6" style={{ marginBottom: '8px', marginTop: '8px' }}>
+              <button
+                data-testid="streamer-filter-all"
+                onClick={() => setSelectedStreamers([])}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: 'var(--radius-pill)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: selectedStreamers.length === 0 ? 'var(--accent-pink)' : 'var(--bg-surface-frosted)',
+                  color: selectedStreamers.length === 0 ? 'white' : 'var(--text-secondary)',
+                }}
+              >
+                All
+              </button>
+              {streamersData.map((s) => (
+                <button
+                  key={s.channelId}
+                  data-testid={`streamer-filter-${s.channelId}`}
+                  onClick={() => {
+                    setSelectedStreamers((prev) =>
+                      prev.includes(s.channelId)
+                        ? prev.filter((id) => id !== s.channelId)
+                        : [...prev, s.channelId]
+                    );
+                  }}
+                  style={{
+                    padding: '4px 12px 4px 6px',
+                    borderRadius: 'var(--radius-pill)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: selectedStreamers.includes(s.channelId) ? 'var(--accent-pink)' : 'var(--bg-surface-frosted)',
+                    color: selectedStreamers.includes(s.channelId) ? 'white' : 'var(--text-secondary)',
+                  }}
+                >
+                  <img
+                    src={s.avatarUrl}
+                    alt={s.displayName}
+                    style={{ width: '20px', height: '20px', borderRadius: '50%' }}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
+                  {s.displayName}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Action Bar — desktop only */}
           <div
