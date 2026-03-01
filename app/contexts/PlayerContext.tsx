@@ -262,8 +262,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
     const tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
-    const firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    document.body.appendChild(tag);
 
     // Set timeout for API load failure (10 seconds)
     apiLoadTimeoutRef.current = setTimeout(() => {
@@ -339,13 +338,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!isPlayerReady || !currentTrack) return;
 
-    // Clear previous errors when starting new track
     setPlayerError(null);
 
     const player = playerRef.current;
 
     // --- Reuse existing player ---
-    if (player && loadedVideoIdRef.current) {
+    if (player) {
       if (currentTrack.videoId === loadedVideoIdRef.current) {
         // Same VOD — just seek to the new timestamp
         const videoDuration = player.getDuration?.() || 0;
@@ -377,89 +375,86 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
 
     // --- First-time creation ---
-    // Destroy any leftover player (shouldn't happen, but safety)
-    if (player) {
-      player.destroy();
-      playerRef.current = null;
-    }
-
-    loadedVideoIdRef.current = currentTrack.videoId;
-    playerRef.current = new window.YT.Player(playerDivId, {
-      height: '360',
-      width: '640',
-      videoId: currentTrack.videoId,
-      playerVars: {
-        start: currentTrack.timestamp,
-        autoplay: 1,
-        controls: 1,
-        rel: 0,
-        origin: typeof window !== 'undefined' ? window.location.origin : undefined,
-      },
-      events: {
-        onReady: (event: any) => {
-          const videoDuration = event.target.getDuration();
-          setDuration(videoDuration);
-
-          // Check if timestamp exceeds video length
-          if (currentTrack.timestamp > 0 && videoDuration > 0 && currentTrack.timestamp >= videoDuration) {
-            event.target.seekTo(0, true);
-            setTimestampWarning('時間戳可能有誤');
-          } else {
-            event.target.seekTo(currentTrack.timestamp, true);
-          }
-
-          // Apply saved volume/mute settings to newly created player
-          event.target.setVolume(volumeRef.current);
-          if (isMutedRef.current) {
-            event.target.mute();
-          } else {
-            event.target.unMute();
-          }
-
-          event.target.playVideo();
-          setIsPlaying(true);
-          startTimeUpdateInterval();
+    if (!player) {
+      loadedVideoIdRef.current = currentTrack.videoId;
+      playerRef.current = new window.YT.Player(playerDivId, {
+        height: '360',
+        width: '640',
+        videoId: currentTrack.videoId,
+        playerVars: {
+          start: currentTrack.timestamp,
+          autoplay: 1,
+          controls: 1,
+          rel: 0,
+          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
         },
-        onStateChange: (event: any) => {
-          // YT.PlayerState: PLAYING=1, PAUSED=2, ENDED=0
-          if (event.data === 1) {
-            setIsPlaying(true);
-            // Update duration (needed after loadVideoById since onReady doesn't re-fire)
-            const d = event.target.getDuration?.();
-            if (d > 0) setDuration(d);
-          } else if (event.data === 2) {
-            setIsPlaying(false);
-          } else if (event.data === 0) {
-            // Video ended — repeat-one: seek back and replay
-            if (repeatModeRef.current === 'one' && currentTrackRef.current) {
-              playerRef.current.seekTo(currentTrackRef.current.timestamp, true);
-              playerRef.current.playVideo();
-              return;
-            }
-            // Auto-play next in queue, skipping deleted versions
-            const freshQueue = queueRef.current;
-            if (freshQueue.length > 0 || repeatModeRef.current === 'all') {
-              advanceSkippingDeleted(freshQueue, currentTrackRef.current);
+        events: {
+          onReady: (event: any) => {
+            if (!currentTrackRef.current) return;
+            const videoDuration = event.target.getDuration();
+            setDuration(videoDuration);
+
+            // Check if timestamp exceeds video length
+            if (currentTrackRef.current.timestamp > 0 && videoDuration > 0 && currentTrackRef.current.timestamp >= videoDuration) {
+              event.target.seekTo(0, true);
+              setTimestampWarning('時間戳可能有誤');
             } else {
-              setIsPlaying(false);
+              event.target.seekTo(currentTrackRef.current.timestamp, true);
             }
-          }
+
+            // Apply saved volume/mute settings to newly created player
+            event.target.setVolume(volumeRef.current);
+            if (isMutedRef.current) {
+              event.target.mute();
+            } else {
+              event.target.unMute();
+            }
+
+            event.target.playVideo();
+            setIsPlaying(true);
+            startTimeUpdateInterval();
+          },
+          onStateChange: (event: any) => {
+            // YT.PlayerState: PLAYING=1, PAUSED=2, ENDED=0
+            if (event.data === 1) {
+              setIsPlaying(true);
+              // Update duration (needed after loadVideoById since onReady doesn't re-fire)
+              const d = event.target.getDuration?.();
+              if (d > 0) setDuration(d);
+            } else if (event.data === 2) {
+              setIsPlaying(false);
+            } else if (event.data === 0) {
+              // Video ended — repeat-one: seek back and replay
+              if (repeatModeRef.current === 'one' && currentTrackRef.current) {
+                playerRef.current.seekTo(currentTrackRef.current.timestamp, true);
+                playerRef.current.playVideo();
+                return;
+              }
+              // Auto-play next in queue, skipping deleted versions
+              const freshQueue = queueRef.current;
+              if (freshQueue.length > 0 || repeatModeRef.current === 'all') {
+                advanceSkippingDeleted(freshQueue, currentTrackRef.current);
+              } else {
+                setIsPlaying(false);
+              }
+            }
+          },
+          onError: (event: any) => {
+            // YouTube error codes:
+            // 2: Invalid parameter
+            // 5: HTML5 player error
+            // 100: Video not found / removed
+            // 101: Video not allowed in embedded players
+            // 150: Same as 101 (owner restricted embedding)
+            const errorVideoId = loadedVideoIdRef.current;
+            if ([100, 101, 150].includes(event.data) && errorVideoId) {
+              setPlayerError('此影片已無法播放');
+              setUnavailableVideoIds(prev => new Set([...prev, errorVideoId]));
+            }
+          },
         },
-        onError: (event: any) => {
-          // YouTube error codes:
-          // 2: Invalid parameter
-          // 5: HTML5 player error
-          // 100: Video not found / removed
-          // 101: Video not allowed in embedded players
-          // 150: Same as 101 (owner restricted embedding)
-          const errorVideoId = loadedVideoIdRef.current;
-          if ([100, 101, 150].includes(event.data) && errorVideoId) {
-            setPlayerError('此影片已無法播放');
-            setUnavailableVideoIds(prev => new Set([...prev, errorVideoId]));
-          }
-        },
-      },
-    });
+      });
+    }
   }, [isPlayerReady, currentTrack]);
 
   const toggleRepeat = () => {

@@ -22,9 +22,9 @@ export default function PlayerWrapper({ children }: { children: ReactNode }) {
               {children}
               <MiniPlayer />
               <NowPlayingModal />
-              <YouTubePlayerContainer />
               <QueuePanel />
               <RecentlyPlayedTracker />
+              <YouTubePlayerContainer />
             </RecentlyPlayedProvider>
           </LikedSongsProvider>
         </PlaylistProvider>

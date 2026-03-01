@@ -1948,6 +1948,16 @@
         "timestamp": 7237,
         "endTimestamp": 7489,
         "note": ""
+      },
+      {
+        "id": "p104-2",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 6882,
+        "endTimestamp": null,
+        "note": ""
       }
     ]
   },
@@ -4531,6 +4541,430 @@
         "videoId": "o8cIH8GpeMA",
         "timestamp": 9982,
         "endTimestamp": 10164,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-248",
+    "title": "浪費",
+    "originalArtist": "林宥嘉",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p248-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 581,
+        "endTimestamp": 1229,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-249",
+    "title": "默",
+    "originalArtist": "那英",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p249-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 1229,
+        "endTimestamp": 1957,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-250",
+    "title": "失落沙洲",
+    "originalArtist": "徐佳瑩",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p250-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 1957,
+        "endTimestamp": 2683,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-251",
+    "title": "記得",
+    "originalArtist": "張惠妹",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p251-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 2683,
+        "endTimestamp": 3366,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-252",
+    "title": "唯一",
+    "originalArtist": "告五人",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p252-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 3366,
+        "endTimestamp": 3959,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-253",
+    "title": "我好想你",
+    "originalArtist": "蘇打綠",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p253-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 3959,
+        "endTimestamp": 4487,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-254",
+    "title": "忘記擁抱",
+    "originalArtist": "A-Lin",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p254-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 4487,
+        "endTimestamp": 5040,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-255",
+    "title": "空白格",
+    "originalArtist": "蔡健雅",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p255-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 5040,
+        "endTimestamp": 5608,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-256",
+    "title": "像魚",
+    "originalArtist": "王貳浪",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p256-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 5608,
+        "endTimestamp": 6120,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-257",
+    "title": "半句再見",
+    "originalArtist": "孫燕姿",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p257-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 6120,
+        "endTimestamp": 6534,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-258",
+    "title": "過了幾天",
+    "originalArtist": "郭家瑋",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p258-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 6534,
+        "endTimestamp": 7039,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-259",
+    "title": "11",
+    "originalArtist": "黃禮格",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p259-1",
+        "streamId": "stream-2026-01-07",
+        "date": "2026-01-07",
+        "streamTitle": "【歌回】失戀歌回: 不是華語音樂為啥都是傷心情歌啦｜煌Kirali",
+        "videoId": "gOdBkLapyLo",
+        "timestamp": 7039,
+        "endTimestamp": null,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-260",
+    "title": "Free",
+    "originalArtist": "Rumi & Jinu",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p260-1",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 910,
+        "endTimestamp": 1675,
+        "note": ""
+      },
+      {
+        "id": "p260-2",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 4354,
+        "endTimestamp": 4667,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-261",
+    "title": "B.O.",
+    "originalArtist": "ØZI",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p261-1",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 1675,
+        "endTimestamp": 2358,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-262",
+    "title": "傲嬌",
+    "originalArtist": "張惠妹 feat. 艾怡良、徐佳瑩",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p262-1",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 2358,
+        "endTimestamp": 2985,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-263",
+    "title": "信號",
+    "originalArtist": "汐Seki",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p263-1",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 2985,
+        "endTimestamp": 3532,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-264",
+    "title": "Sucker",
+    "originalArtist": "Marcus King",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p264-1",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 3532,
+        "endTimestamp": 4181,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-265",
+    "title": "B.O.",
+    "originalArtist": "ØZI (王月沒開麥又烙版)",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p265-1",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 4181,
+        "endTimestamp": 4354,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-266",
+    "title": "知否知否",
+    "originalArtist": "胡夏、郁可唯",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p266-1",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 4667,
+        "endTimestamp": 5205,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-267",
+    "title": "母系社會",
+    "originalArtist": "張惠妹",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p267-1",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 5205,
+        "endTimestamp": 5606,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-268",
+    "title": "Toxic",
+    "originalArtist": "Britney Spears (浴室基唱歌)",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p268-1",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 5606,
+        "endTimestamp": 6085,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-269",
+    "title": "逆光",
+    "originalArtist": "陳芳語 (創造101版本)",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p269-1",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 6085,
+        "endTimestamp": 6611,
+        "note": ""
+      }
+    ]
+  },
+  {
+    "id": "song-270",
+    "title": "暮光 Gloaming Light",
+    "originalArtist": "扉暮IANVS",
+    "tags": [],
+    "performances": [
+      {
+        "id": "p270-1",
+        "streamId": "stream-2025-10-03",
+        "date": "2025-10-03",
+        "streamTitle": "【合唱歌回】姊妹強勢回歸，這次一定烙賽｜煌Kirali",
+        "videoId": "Bld9n7JSOGo",
+        "timestamp": 6611,
+        "endTimestamp": 6882,
         "note": ""
       }
     ]

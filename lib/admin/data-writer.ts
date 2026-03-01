@@ -68,6 +68,7 @@ export interface ImportResult {
   newSongs: number;
   existingSongMatches: number;
   newPerformances: number;
+  isOverwrite?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,8 +139,23 @@ export function addStreamAndSongs(dataDir: string, request: ImportRequest): Impo
   const streams: Stream[] = readJsonFile(streamsPath);
 
   // Check for duplicate stream
-  if (streams.some((s) => s.videoId === request.videoId)) {
-    throw new Error(`Stream with videoId ${request.videoId} already exists`);
+  const existingStreamIdx = streams.findIndex((s) => s.videoId === request.videoId);
+  let isOverwrite = false;
+  if (existingStreamIdx !== -1) {
+    const oldStreamId = streams[existingStreamIdx].id;
+    streams.splice(existingStreamIdx, 1);
+    
+    // Remove all performances associated with the old stream
+    for (const song of songs) {
+      song.performances = song.performances.filter((p) => p.streamId !== oldStreamId);
+    }
+    // Remove songs that no longer have performances
+    for (let i = songs.length - 1; i >= 0; i--) {
+      if (songs[i].performances.length === 0) {
+        songs.splice(i, 1);
+      }
+    }
+    isOverwrite = true;
   }
 
   // Create stream
@@ -217,6 +233,7 @@ export function addStreamAndSongs(dataDir: string, request: ImportRequest): Impo
     newSongs: newSongCount,
     existingSongMatches: existingMatchCount,
     newPerformances: perfCount,
+    isOverwrite,
   };
 }
 

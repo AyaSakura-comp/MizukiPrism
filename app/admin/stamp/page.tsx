@@ -20,7 +20,7 @@ import {
   Keyboard,
 } from 'lucide-react';
 import { Song, Stream, Performance } from '@/lib/types';
-import { secondsToTimestamp, parseTimestamp } from '@/lib/utils';
+import { secondsToTimestamp, timestampToSeconds } from '@/lib/utils';
 
 // --- Components ---
 

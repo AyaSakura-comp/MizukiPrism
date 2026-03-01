@@ -8,21 +8,6 @@ import path from 'path';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
-// GET: Check if a streamer exists
-export async function GET(request: NextRequest) {
-  if (process.env.NODE_ENV !== 'development') {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
-  const channelId = request.nextUrl.searchParams.get('channelId');
-  if (!channelId) {
-    return NextResponse.json({ error: 'channelId is required' }, { status: 400 });
-  }
-
-  const streamers = readStreamers(DATA_DIR);
-  const streamer = findStreamerByChannelId(streamers, channelId);
-  return NextResponse.json({ exists: !!streamer, streamer });
-}
-
 // POST: Fetch profile from YouTube and/or save streamer
 export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV !== 'development') {

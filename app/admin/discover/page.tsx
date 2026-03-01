@@ -273,10 +273,10 @@ export default function DiscoverPage() {
 
         {/* Error banner */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-            <AlertCircle size={16} />
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600">✕</button>
+          <div className="mb-4 p-4 bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border-l-4 border-l-pink-500 border-y border-r border-white/60 flex items-center gap-3 text-pink-600">
+            <AlertCircle size={20} />
+            <span className="font-medium flex-1">{error}</span>
+            <button onClick={() => setError(null)} className="text-pink-400 hover:text-pink-600 transition-colors">✕</button>
           </div>
         )}
 
@@ -523,6 +523,12 @@ export default function DiscoverPage() {
               <Check size={20} />
               <h2 className="text-lg font-semibold">匯入完成！</h2>
             </div>
+            {importResult.isOverwrite && (
+              <div className="mb-4 p-3 bg-white/50 border-l-4 border-l-orange-400 rounded-r-lg text-orange-600 text-sm flex items-center gap-2">
+                <AlertCircle size={16} />
+                <span>此直播先前已匯入過，已自動覆蓋更新原有的資料。</span>
+              </div>
+            )}
             <div className="space-y-1 text-sm text-gray-600">
               <p>新歌曲：{importResult.newSongs}</p>
               <p>已有歌曲（新增版本）：{importResult.existingSongMatches}</p>
