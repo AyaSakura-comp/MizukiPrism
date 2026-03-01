@@ -39,6 +39,9 @@ export default function DiscoverPage() {
   const [pasteMode, setPasteMode] = useState(false);
   const [pastedText, setPastedText] = useState('');
   const [importResult, setImportResult] = useState<any>(null);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualTitle, setManualTitle] = useState('');
+  const [manualDate, setManualDate] = useState(new Date().toISOString().slice(0, 10));
 
   // Auth check
   useEffect(() => {
@@ -108,6 +111,34 @@ export default function DiscoverPage() {
       setSongs(data.songs || []);
       setExtractionSource('text');
       setPasteMode(false);
+    } catch (err) {
+      setError(String(err));
+    }
+  }
+
+  // Manual mode: extract from pasted text without YouTube URL
+  async function handleManualExtract() {
+    if (!manualTitle || !pastedText) return;
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: pastedText }),
+      });
+      const data = await res.json();
+      const manualId = `manual${Date.now()}`;
+      setVideoInfo({
+        videoId: manualId,
+        title: manualTitle,
+        date: manualDate,
+        description: '',
+        durationSeconds: 0,
+      });
+      setSongs(data.songs || []);
+      setExtractionSource('text');
+      setPasteMode(false);
+      setStep('review');
     } catch (err) {
       setError(String(err));
     }
@@ -207,27 +238,74 @@ export default function DiscoverPage() {
 
         {/* Step 1: URL Input */}
         {step === 'input' && (
-          <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6">
-            <h2 className="text-lg font-semibold mb-4">貼上 YouTube 影片連結</h2>
-            <div className="flex gap-2">
-              <input
-                data-testid="discover-url-input"
-                type="text"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleFetchVideo()}
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300"
-              />
+          <div className="space-y-4">
+            <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6">
+              <h2 className="text-lg font-semibold mb-4">貼上 YouTube 影片連結</h2>
+              <div className="flex gap-2">
+                <input
+                  data-testid="discover-url-input"
+                  type="text"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFetchVideo()}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300"
+                />
+                <button
+                  data-testid="discover-fetch-button"
+                  onClick={handleFetchVideo}
+                  className="px-6 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90 flex items-center gap-2"
+                >
+                  <Search size={16} />
+                  取得資訊
+                </button>
+              </div>
               <button
-                data-testid="discover-fetch-button"
-                onClick={handleFetchVideo}
-                className="px-6 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90 flex items-center gap-2"
+                data-testid="manual-mode-toggle"
+                onClick={() => setManualMode(!manualMode)}
+                className="mt-3 text-sm text-pink-500 hover:text-pink-700"
               >
-                <Search size={16} />
-                取得資訊
+                {manualMode ? '隱藏手動輸入' : '手動貼上歌單'}
               </button>
             </div>
+
+            {manualMode && (
+              <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6 space-y-3">
+                <h3 className="font-semibold">手動輸入歌單</h3>
+                <div className="flex gap-3">
+                  <input
+                    data-testid="manual-title-input"
+                    type="text"
+                    value={manualTitle}
+                    onChange={(e) => setManualTitle(e.target.value)}
+                    placeholder="直播標題"
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300 text-sm"
+                  />
+                  <input
+                    data-testid="manual-date-input"
+                    type="date"
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                    className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300 text-sm"
+                  />
+                </div>
+                <textarea
+                  data-testid="paste-text-input"
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  placeholder="0:04:23 誰 / 李友廷&#10;0:08:26 Shape of You / Ed Sheeran&#10;..."
+                  rows={8}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300 font-mono text-sm"
+                />
+                <button
+                  data-testid="paste-extract-button"
+                  onClick={handleManualExtract}
+                  className="px-4 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90"
+                >
+                  擷取歌曲
+                </button>
+              </div>
+            )}
           </div>
         )}
 
