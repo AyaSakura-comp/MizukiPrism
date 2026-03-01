@@ -79,6 +79,7 @@ The Python venv is at `tools/mizukilens/.venv/`. Use `.venv/bin/python3` to run 
 
 - Components use `'use client'` directive
 - CSS variables for theming: `--accent-pink`, `--bg-surface-frosted`, `--text-secondary`, `--text-tertiary`
+- Glassmorphism UI: Use `backdrop-blur-xl`, `bg-white/80`, and semi-transparent borders for overlays and banners
 - Tailwind classes + inline styles with CSS vars
 - Gradient placeholder pattern for missing album art (see `AlbumArt.tsx`)
 - Metadata loaded at page init, lyrics lazy-loaded on first open
@@ -97,6 +98,9 @@ The Python venv is at `tools/mizukilens/.venv/`. Use `.venv/bin/python3` to run 
 - **Lyrics lazy loading**: `song-lyrics.json` fetched only when lyrics panel opens (not at page load).
 - **Metadata lifecycle**: CLI fetches from Deezer/LRCLIB → writes JSON → commit → deploy → fans see it. `manual` status entries are never auto-overwritten unless `--force`.
 - **AlbumArt** component is reusable across 5 UI positions (song list, mini player desktop/mobile, now playing modal, queue panel).
+- **YouTube Player Optimization**: The player iframe is initialized background-ready and reused across track switches via `loadVideoById` to eliminate script loading lag.
+- **Data Overwrite Strategy**: Admin import API automatically overwrites existing stream/performance records by `videoId`, allowing updates without manual deletion.
+- **Multi-Streamer Support**: Song records are associated with streamers via `channelId`. The frontend provides a switcher to filter by "All", "Mizuki", or other recognized streamers.
 
 ## Testing & Verification
 
