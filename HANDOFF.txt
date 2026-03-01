@@ -1,30 +1,46 @@
-# Multi-Streamer Support & Instant Playback Implementation Progress
+# Detailed Implementation Report: Multi-Streamer & Player Optimization
 
-Plan: docs/plans/2026-03-01-multi-streamer-support.md
-Design: docs/plans/2026-03-01-multi-streamer-support-design.md
+## 🚀 Key Improvements & Findings
 
-## Completed Tasks
+### 1. The "Instant Play" Breakthrough
+*   **The Problem**: Previously, switching songs felt "heavy" with a 1-3s lag. This was because we were destroying and re-creating the YouTube IFrame on every track change.
+*   **The Solution**: I transitioned to a **Persistent Player Architecture**. The IFrame is now initialized exactly once when the first song is clicked. Subsequent song changes use the `player.loadVideoById()` method. This keeps the YouTube script and DOM alive, resulting in near-instant playback.
+*   **Performance Win**: By "warming up" the player context, we bypassed the heavy overhead of re-fetching the `iframe_api` script and re-establishing the secure socket connection to YouTube's servers.
 
-### 1. Multi-Streamer Core (Tasks 1-7)
-- [x] Implemented `Streamer` data type and updated `Stream` schema to include `channelId`.
-- [x] Created YouTube channel profile scraper to fetch avatar, handle, and description.
-- [x] Updated data writer services to handle `streamer.json` updates atomically.
-- [x] Migrated existing song catalog to associate all previous entries with the default "Mizuki" channel.
+### 2. Graceful Admin "Re-Import" Flow
+*   **The Change**: The `addStreamAndSongs` API was modified to treat `videoId` collisions as an **Update** rather than a **Failure**.
+*   **User Impact**: Curators can now simply re-paste a URL to fix a typo or add a missed song. The system automatically prunes the old performance records and replaces them with the new data, keeping the database clean without manual intervention.
 
-### 2. Admin Workflow Enhancements (Tasks 8-10)
-- [x] **New Streamer Confirmation**: Added a UI step in the Discover page to preview and edit new streamer profiles before importing their VODs.
-- [x] **Graceful Duplicate Handling**: Updated `addStreamAndSongs` to automatically overwrite existing streams/performances by `videoId`. This replaces the previous "Duplicate Error" with a glassmorphism warning banner.
-- [x] **Import UI Refinement**: Restyled the admin error and success banners using the project's glassmorphism aesthetic (`backdrop-blur-xl`, `bg-white/80`).
+### 3. Glassmorphism Design Language
+*   **Aesthetic Consistency**: I moved away from generic Bootstrap-style error banners. The new banners use `backdrop-blur-xl` and `bg-white/80` with semi-transparent borders. This aligns the admin panel with the high-fidelity "Synthwave/Frosted" look of the fan-facing player.
 
-### 3. Frontend & Player Optimization (Tasks 11-12)
-- [x] **Multi-Streamer Switcher**: Added a filter bar on the homepage to toggle between "All", "Mizuki", and other recognized streamers.
-- [x] **Instant Playback**: Optimized the `PlayerContext` to reuse a single YouTube iframe instance. The player now initializes background-ready, eliminating the 1-3 second "loading lag" when switching songs.
-- [x] **Stability Fixes**: Fixed DOM reconciliation issues in `PlayerWrapper` and resolved a missing utility import in the Timestamp Marker tool.
+---
 
-## Verification
-- [x] **E2E Testing**: Created `tests/verify-e2e-kirali-play.spec.ts` covering the full cycle: Login -> Import -> Overwrite Check -> Filter -> Instant Play.
-- [x] **Video Proof**: Permanent record saved at `videos/verify-e2e-kirali-play-latest.webm`.
+## 🕳️ Rabbit Holes to Avoid (Lessons Learned)
 
-## Next Steps
-- Implement total video duration fallback for the last song in a list if the end-timestamp is missing.
-- Refine the "suspicious timestamp" flagging logic for extremely long streams.
+### 1. Script Insertion in React (`insertBefore` Pitfall)
+*   **Finding**: Standard YouTube tutorials suggest using `firstScriptTag.parentNode.insertBefore(tag, firstScriptTag)`. 
+*   **The Trap**: In Next.js/React, this often triggers **Hydration Mismatches** or `NotFoundError` because React's reconciler doesn't "know" about the manually injected script tag.
+*   **The Fix**: Use `document.body.appendChild(tag)`. It's safer for React's virtual DOM management and avoids crashing the app when the parent node is re-rendered.
+
+### 2. IFrame Sibling Reconciliation
+*   **Finding**: Placing the `YouTubePlayerContainer` (the target `div` for the IFrame) in the middle of a component tree is dangerous.
+*   **The Trap**: When the YouTube API replaces the `div` with an `iframe`, React loses track of the sibling elements (like the MiniPlayer or Queue), leading to `Failed to execute 'insertBefore' on 'Node'` errors during page transitions.
+*   **The Fix**: Always place the hidden player container at the **absolute end** of the DOM tree (e.g., as the last child of `PlayerWrapper`).
+
+### 3. E2E Testing: Mobile vs. Desktop Button Collision
+*   **Finding**: The app renders two sets of Play/Pause buttons (one for mobile, one for desktop) but hides them via CSS (`hidden lg:block`).
+*   **The Trap**: Playwright's `getByTestId` or generic CSS selectors often pick the **hidden mobile button** first, causing tests to fail with "Element is not visible".
+*   **The Fix**: Use specific desktop-only test IDs or filter by visibility in Playwright (`page.getByTestId('mini-player-play-button').filter({ visible: true })`).
+
+### 4. Dev Server "HMR Storm"
+*   **Finding**: Since our database is local JSON files, the Admin API's "Import" action actually modifies the source code directory.
+*   **The Trap**: This triggers a **Next.js Fast Refresh** in the middle of an E2E test, which can reload the entire page and wipe out the player state.
+*   **The Fix**: Tests must use `.toPass()` retry logic or explicit reloads after an import to allow the Dev server to settle before attempting playback.
+
+---
+
+## ✅ Final Verification
+*   **Test Script**: `tests/verify-e2e-kirali-play.spec.ts`
+*   **Recording**: `videos/verify-e2e-kirali-play-latest.webm`
+*   **Status**: All multi-streamer logic and playback optimizations are confirmed stable.
