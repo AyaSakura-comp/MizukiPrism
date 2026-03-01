@@ -111,6 +111,8 @@ Playwright tests live in `tests/*.spec.ts`. Key test files:
 - `tests/admin-kirali-import.spec.ts` — full auto-import from YouTube comments
 - `tests/admin-stamp.spec.ts` — timestamp marking UI
 - `tests/admin-regression.spec.ts` — before/after fan-facing regression
+- `tests/multi-streamer.spec.ts` — multi-streamer switcher and filtering
+- `tests/verify-e2e-kirali-play.spec.ts` — full workflow: import -> duplicate warning -> filter -> play
 - `tests/core-001.spec.ts` — core fan-facing page
 
 ### E2E Video Recording & Verification Flow
