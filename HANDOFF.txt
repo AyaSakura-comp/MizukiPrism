@@ -1,0 +1,54 @@
+# MizukiPrism Integrated Admin Panel - PROGRESS HANDOFF
+
+## Project Overview
+I am implementing an integrated browser-based Admin Panel for MizukiPrism, replacing the Python-based CLI pipeline with a Next.js native management interface.
+
+## What has been done (Tasks 1 - 11)
+
+### 1. Backend Services (Ported from Python)
+- **Extraction Service (`lib/admin/extraction.ts`)**: Logic for parsing timestamps and song titles from text. Added support for alphanumeric prefixes (e.g., `EX.`) and CJK separators (`｜`, `：`).
+- **YouTube Service (`lib/admin/youtube.ts`)**: Scrapes video metadata and comments using Innertube API (no API key required). Improved robustness for `ytInitialData` variants.
+- **Metadata Service (`lib/admin/metadata.ts`)**: Integration with iTunes (album art) and LRCLIB (synced lyrics) with automated rate limiting and search strategies.
+- **Data Writer Service (`lib/admin/data-writer.ts`)**: Handles atomic JSON updates to `data/songs.json` and `data/streams.json`, merging new performances into existing song entries.
+- **Git Service (`lib/admin/git.ts`)**: Provides wrappers for `git status`, `git diff`, and `git commit` to handle data publication.
+
+### 2. API Layer
+- Created 5 dev-only endpoints in `app/api/admin/`:
+  - `/api/admin/discover`: Fetch YT video info.
+  - `/api/admin/extract`: Extract songs from comments or text.
+  - `/api/admin/import`: Merge songs into the catalog.
+  - `/api/admin/metadata`: Fetch/Update art and lyrics.
+  - `/api/admin/deploy`: Preview and commit changes.
+
+### 3. UI Implementation
+- **Dashboard (`app/admin/page.tsx`)**: Central hub with navigation to all new tools. Fixed missing icon imports (Clock, ImageIcon, CloudUpload).
+- **Discover & Import (`app/admin/discover/page.tsx`)**: URL-to-Catalog workflow. Includes auto-extraction from comments and manual paste fallback.
+- **Timestamp Marker (`app/admin/stamp/page.tsx`)**: Visual tool for marking start/end times. Supports keyboard shortcuts: `Space` (Play/Pause), `T` (Set Start), `M` (Set End), `S/E` (Seek), `N/P` (Next/Prev Song).
+- **Metadata Management (`app/admin/metadata/page.tsx`)**: Bulk or single-song fetching of album art and lyrics.
+- **Deploy Page (`app/admin/deploy/page.tsx`)**: Side-by-side git status and colored diff preview.
+
+---
+
+## Verification Methodology
+
+### 1. Automated Testing
+- **Unit (Vitest)**: 11+ test files in `lib/admin/__tests__/`. Run via `npm run test:unit`. Ensures data processing logic is 100% correct in isolation.
+- **E2E (Playwright)**: Tests in `tests/admin-*.spec.ts`. Run via `npx playwright test`. Ensures the UI correctly communicates with APIs and handles state.
+
+### 2. Video Verification (Permanent Record)
+- Playwright is configured with `video: 'on'`.
+- All successful runs generate `.webm` videos in `test-results/`.
+- Verified videos are copied to the `videos/` directory for manual review.
+  - `videos/verify-admin-api-latest.webm`: API correctness.
+  - `videos/verify-admin-discover-latest.webm`: Import UI flow.
+
+### 3. Stability Checks
+- **Next Build**: Verified that the new `use server` files and dev-only APIs do not break the static export build (`npm run build`).
+- **ESLint**: Critical syntax errors (unterminated strings) have been resolved.
+
+---
+
+## Current State & Next Steps
+- The Admin Panel is currently functional and accessible at `http://localhost:3000/admin` (credentials: `curator` / `mizuki-admin`).
+- **Immediate Next Step**: Task 12 (Refinement) and Task 13 (Final Verification).
+- **Known Challenge**: Auto-extraction from YouTube comments is "best effort" due to YT's changing data structures. The "Manual Paste" fallback is the recommended stable path for complex song lists.

@@ -3222,3 +3222,6 @@ git commit -m "test: add E2E tests with Playwright video recording for admin wor
 - Admin pages export as client-side rendered shells (non-functional without dev server)
 - Existing fan-facing API routes (GET with `force-static`) are unaffected
 - Run `npm run build` after each task to verify no breakage
+
+### Global Requirement Update
+As per user request, starting from Task 7, **every** new API route or UI page task MUST include an E2E Playwright test with video recording (`video: 'on'`) as part of its verification step, rather than waiting for Task 13.
