@@ -5,6 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import type { Streamer } from '@/lib/types';
 
 // Re-export types from lib/types for convenience
 interface Performance {
@@ -276,4 +277,35 @@ export function updateMetadataFiles(
     }
     writeJsonFileAtomic(lyricsPath, existing);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Streamer file operations
+// ---------------------------------------------------------------------------
+
+export function readStreamers(dataDir: string): Streamer[] {
+  const filePath = path.join(dataDir, 'streamer.json');
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8').trim();
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+export function writeStreamers(dataDir: string, streamers: Streamer[]): void {
+  const filePath = path.join(dataDir, 'streamer.json');
+  writeJsonFileAtomic(filePath, streamers);
+}
+
+export function findStreamerByChannelId(streamers: Streamer[], channelId: string): Streamer | null {
+  return streamers.find((s) => s.channelId === channelId) || null;
+}
+
+export function addStreamer(dataDir: string, streamer: Streamer): void {
+  const streamers = readStreamers(dataDir);
+  if (findStreamerByChannelId(streamers, streamer.channelId)) return;
+  streamers.push(streamer);
+  writeStreamers(dataDir, streamers);
 }
