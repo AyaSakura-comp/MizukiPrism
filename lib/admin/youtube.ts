@@ -1,4 +1,4 @@
-'use server';
+
 // YouTube video info and comment fetching via innertube API (no API key needed)
 
 export interface VideoInfo {
@@ -133,8 +133,9 @@ export async function fetchComments(videoId: string): Promise<Comment[]> {
   const html = await pageRes.text();
 
   // Find ytInitialData (not player response — the page data)
-  const dataMatch = html.match(/var ytInitialData\s*=\s*(\{.+?\});\s*<\/script/s)
-    || html.match(/ytInitialData\s*=\s*(\{.+?\});\s*<\/script/s);
+  const dataMatch = html.match(/ytInitialData\s*=\s*(\{.+?\});/s)
+    || html.match(/var\s+ytInitialData\s*=\s*(\{.+?\});/s)
+    || html.match(/window\["ytInitialData"\]\s*=\s*(\{.+?\});/s);
   if (!dataMatch) return [];
 
   const pageData = JSON.parse(dataMatch[1]);
@@ -164,14 +165,36 @@ export async function fetchComments(videoId: string): Promise<Comment[]> {
  */
 function findCommentContinuationToken(data: any): string | null {
   try {
-    const tabs = data?.contents?.twoColumnWatchNextResults?.results?.results?.contents || [];
-    for (const item of tabs) {
+    // Path 1: Desktop / Standard
+    const results = data?.contents?.twoColumnWatchNextResults?.results?.results?.contents || [];
+    for (const item of results) {
       const section = item?.itemSectionRenderer;
-      if (!section) continue;
-      const continuations = section.contents?.[0]?.continuationItemRenderer?.continuationEndpoint
-        ?.continuationCommand?.token;
-      if (continuations) return continuations;
+      if (section?.sectionIdentifier === 'comment-item-section' || section?.targetId === 'comments-section') {
+        const token = section.contents?.[0]?.continuationItemRenderer?.continuationEndpoint
+          ?.continuationCommand?.token;
+        if (token) return token;
+      }
     }
+
+    // Path 2: Alternative desktop structure
+    const itemSection = results.find((item: any) => item?.itemSectionRenderer)?.itemSectionRenderer;
+    if (itemSection?.contents) {
+      for (const content of itemSection.contents) {
+        const token = content?.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token;
+        if (token) return token;
+      }
+    }
+
+    // Path 3: Direct search in all contents
+    const flattenContents = (obj: any): any[] => {
+      if (!obj || typeof obj !== 'object') return [];
+      if (Array.isArray(obj)) return obj.flatMap(flattenContents);
+      if (obj.continuationCommand?.token) return [obj.continuationCommand.token];
+      return Object.values(obj).flatMap(flattenContents);
+    };
+    
+    const allTokens = flattenContents(data);
+    return allTokens.length > 0 ? allTokens[0] : null;
   } catch {
     // Structure mismatch
   }
@@ -179,11 +202,42 @@ function findCommentContinuationToken(data: any): string | null {
 }
 
 /**
+ * Recursively search an object for all values matching a given key.
+ * Yields each matching value found anywhere in the object tree.
+ */
+export function* searchDict(obj: unknown, key: string): Generator<unknown> {
+  if (!obj || typeof obj !== 'object') return;
+  if (Array.isArray(obj)) {
+    for (const item of obj) yield* searchDict(item, key);
+    return;
+  }
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (k === key) yield v;
+    yield* searchDict(v, key);
+  }
+}
+
+/**
  * Parse innertube comment continuation response into Comment objects.
+ * Supports YouTube's new commentEntityPayload format (primary) and falls
+ * back to the legacy commentRenderer format for compatibility with mock data.
  */
 export function parseComments(data: any): Comment[] {
-  const comments: Comment[] = [];
+  // Try new format: commentEntityPayload
+  const payloads = [...searchDict(data, 'commentEntityPayload')] as any[];
+  if (payloads.length > 0) {
+    return payloads.map((payload) => {
+      const text = payload?.properties?.content?.content || '';
+      const author = payload?.properties?.authorName || payload?.author?.displayName || '';
+      const votes = payload?.toolbar?.likeCountA11y || payload?.toolbar?.likeCount || '0';
+      const cid = payload?.properties?.commentId || '';
+      const isPinned = !!(payload?.pinnedText);
+      return { cid, author, text, votes, isPinned };
+    });
+  }
 
+  // Fallback: legacy commentRenderer format
+  const comments: Comment[] = [];
   const endpoints = data?.onResponseReceivedEndpoints || [];
   for (const endpoint of endpoints) {
     const items =

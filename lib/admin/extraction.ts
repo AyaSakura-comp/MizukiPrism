@@ -1,4 +1,4 @@
-'use server';
+
 // Port of tools/mizukilens/src/mizukilens/extraction.py
 
 // ---------------------------------------------------------------------------
@@ -94,27 +94,27 @@ export function isSuspiciousTimestamp(seconds: number): boolean {
 // ---------------------------------------------------------------------------
 
 function splitArtist(songInfo: string): [string, string] {
-  // Try " / " variants
-  let m = songInfo.match(/\s*\/\s+|\s+\/\s*/);
+  // Try " / " variants (including full-width)
+  let m = songInfo.match(/\s*[\/／]\s+|\s+[\/／]\s*/);
   if (m && m.index !== undefined) {
     const name = songInfo.slice(0, m.index).trim();
     const artist = songInfo.slice(m.index + m[0].length).trim();
     return [name, artist];
   }
 
-  // Try " - " (em-dash and en-dash too)
-  m = songInfo.match(/\s+-\s+/);
+  // Try " - " (em-dash, en-dash, and full-width pipe/colon)
+  m = songInfo.match(/\s+[-–—｜：]\s+/);
   if (m && m.index !== undefined) {
     const name = songInfo.slice(0, m.index).trim();
     const artist = songInfo.slice(m.index + m[0].length).trim();
     return [name, artist];
   }
 
-  // Try bare "/"
-  const slashIdx = songInfo.indexOf('/');
-  if (slashIdx !== -1) {
-    const name = songInfo.slice(0, slashIdx).trim();
-    const artist = songInfo.slice(slashIdx + 1).trim();
+  // Try bare separators
+  const bareMatch = songInfo.match(/[\/／｜：]/);
+  if (bareMatch && bareMatch.index !== undefined) {
+    const name = songInfo.slice(0, bareMatch.index).trim();
+    const artist = songInfo.slice(bareMatch.index + 1).trim();
     if (name && artist) return [name, artist];
   }
 
@@ -133,8 +133,8 @@ export function parseSongLine(line: string): SongLineResult | null {
   line = line.replace(/^[\u2500-\u257F\s]+/, '');
   if (!line) return null;
 
-  // Strip common numbering prefixes: "01. ", "1) ", "#3 "
-  line = line.replace(/^(?:\d+\.\s*|\d+\)\s+|#\d+\s+)/, '');
+  // Strip common alphanumeric prefixes: "01. ", "EX. ", "1) ", "#3 "
+  line = line.replace(/^(?:[A-Z0-9]+\.\s*|\d+\)\s+|#\d+\s+)/i, '');
 
   // Strip bullet prefixes: "- ", "* ", "+ "
   line = line.replace(/^[-*+]\s+/, '');
