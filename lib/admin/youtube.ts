@@ -157,6 +157,90 @@ export interface ChannelProfile {
   socialLinks: Record<string, string>;
 }
 
+import { fetchItunesMetadata } from './metadata';
+
+// ---------------------------------------------------------------------------
+// Rate limiting
+// ---------------------------------------------------------------------------
+
+let lastSearchCall = 0;
+const SEARCH_DELAY_MS = 2000;
+
+async function rateLimitSearch(): Promise<void> {
+  const elapsed = Date.now() - lastSearchCall;
+  const jitter = Math.floor(Math.random() * 1000); // 0-1s jitter
+  if (elapsed < SEARCH_DELAY_MS + jitter) {
+    await new Promise((resolve) => setTimeout(resolve, (SEARCH_DELAY_MS + jitter) - elapsed));
+  }
+  lastSearchCall = Date.now();
+}
+
+/**
+ * Search YouTube for a song and return the duration of the top result.
+ * Queries for "{artist} {title} official".
+ * Falls back to iTunes if YouTube fails or blocks.
+ */
+export async function fetchYouTubeDuration(artist: string, title: string): Promise<number | null> {
+  await rateLimitSearch();
+
+  const query = encodeURIComponent(`${artist} ${title} official`);
+  const url = `https://www.youtube.com/results?search_query=${query}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+        'Referer': 'https://www.google.com/',
+        'Cache-Control': 'no-cache',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+    
+    if (res.ok) {
+      const html = await res.text();
+      const dataMatch = html.match(/ytInitialData\s*=\s*(\{.+?\});/s)
+        || html.match(/var\s+ytInitialData\s*=\s*(\{.+?\});/s)
+        || html.match(/window\["ytInitialData"\]\s*=\s*(\{.+?\});/s);
+      
+      if (dataMatch) {
+        const data = JSON.parse(dataMatch[1]);
+        const videoRenderers = [...searchDict(data, 'videoRenderer')] as any[];
+        
+        if (videoRenderers.length > 0) {
+          const first = videoRenderers[0];
+          const durationText = first.lengthText?.simpleText;
+          if (durationText) {
+            const parts = durationText.split(':').map(Number);
+            if (!parts.some(isNaN)) {
+              if (parts.length === 3) {
+                return parts[0] * 3600 + parts[1] * 60 + parts[2];
+              } else if (parts.length === 2) {
+                return parts[0] * 60 + parts[1];
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.warn(`YouTube duration search failed for ${artist} - ${title}, falling back to iTunes:`, error);
+  }
+
+  // Fallback to iTunes
+  try {
+    const itunes = await fetchItunesMetadata(artist, title);
+    if (itunes && itunes.data.trackDuration > 0) {
+      return itunes.data.trackDuration;
+    }
+  } catch (err) {
+    console.error(`iTunes fallback failed for ${artist} - ${title}:`, err);
+  }
+
+  return null;
+}
+
 export async function fetchChannelProfile(channelId: string): Promise<ChannelProfile> {
   const url = `https://www.youtube.com/channel/${channelId}`;
   const res = await fetch(url, {

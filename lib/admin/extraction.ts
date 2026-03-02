@@ -260,13 +260,13 @@ export function findCandidateComment(comments: Comment[]): Comment | null {
 // iTunes Duration Enrichment
 // ---------------------------------------------------------------------------
 
-import { fetchItunesMetadata } from './metadata';
+import { fetchYouTubeDuration } from './youtube';
 
 const OUTRO_BUFFER_SECONDS = 0;
 
 /**
  * Iterates through parsed songs and attempts to fill any missing endSeconds
- * by querying the iTunes API for the official track duration.
+ * by querying YouTube for the official track duration.
  */
 export async function enrichMissingEndTimestamps(songs: ParsedSong[]): Promise<ParsedSong[]> {
   const result = [...songs];
@@ -276,9 +276,8 @@ export async function enrichMissingEndTimestamps(songs: ParsedSong[]): Promise<P
     
     if (song.endSeconds === null) {
       try {
-        const itunesResult = await fetchItunesMetadata(song.artist, song.songName);
-        if (itunesResult && itunesResult.data.trackDuration > 0) {
-          const duration = itunesResult.data.trackDuration;
+        const duration = await fetchYouTubeDuration(song.artist, song.songName);
+        if (duration && duration > 0) {
           const newEndSeconds = song.startSeconds + duration + OUTRO_BUFFER_SECONDS;
           
           result[i] = {
@@ -288,8 +287,8 @@ export async function enrichMissingEndTimestamps(songs: ParsedSong[]): Promise<P
           };
         }
       } catch (error) {
-        // Silently ignore iTunes fetch errors and leave endSeconds as null
-        console.warn(`Failed to fetch iTunes duration for ${song.artist} - ${song.songName}:`, error);
+        // Silently ignore errors and leave endSeconds as null
+        console.warn(`Failed to fetch duration for ${song.artist} - ${song.songName}:`, error);
       }
     }
   }

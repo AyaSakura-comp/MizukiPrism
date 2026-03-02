@@ -1,10 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { enrichMissingEndTimestamps } from '../extraction';
-import * as metadata from '../metadata';
+import * as youtube from '../youtube';
 
-// Mock the metadata fetcher
-vi.mock('../metadata', () => ({
-  fetchItunesMetadata: vi.fn(),
+// Mock the youtube fetcher
+vi.mock('../youtube', () => ({
+  fetchYouTubeDuration: vi.fn(),
+  searchDict: vi.fn(), // needed because youtube.ts uses it
+  extractVideoId: vi.fn(),
+  fetchComments: vi.fn(),
+  findCandidateComment: vi.fn(),
+  secondsToTimestamp: vi.fn((s) => {
+    const min = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${min}:${sec.toString().padStart(2, '0')}`;
+  }),
 }));
 
 describe('enrichMissingEndTimestamps', () => {
@@ -12,12 +21,9 @@ describe('enrichMissingEndTimestamps', () => {
     vi.clearAllMocks();
   });
 
-  it('fills missing endSeconds using iTunes trackDuration plus buffer', async () => {
+  it('fills missing endSeconds using YouTube duration with 0 buffer', async () => {
     // 200 seconds
-    vi.mocked(metadata.fetchItunesMetadata).mockResolvedValueOnce({
-      data: { trackDuration: 200 } as any,
-      confidence: 'exact'
-    });
+    vi.mocked(youtube.fetchYouTubeDuration).mockResolvedValueOnce(200);
 
     const songs = [
       {
@@ -34,14 +40,14 @@ describe('enrichMissingEndTimestamps', () => {
 
     const enriched = await enrichMissingEndTimestamps(songs);
     
-    // 100 + 200 + 15 buffer = 315
-    expect(enriched[0].endSeconds).toBe(315);
-    expect(enriched[0].endTimestamp).toBe('5:15');
-    expect(metadata.fetchItunesMetadata).toHaveBeenCalledWith('李友廷', '誰');
+    // 100 + 200 + 0 buffer = 300
+    expect(enriched[0].endSeconds).toBe(300);
+    expect(enriched[0].endTimestamp).toBe('5:00');
+    expect(youtube.fetchYouTubeDuration).toHaveBeenCalledWith('李友廷', '誰');
   });
 
-  it('leaves endSeconds as null if iTunes returns null', async () => {
-    vi.mocked(metadata.fetchItunesMetadata).mockResolvedValueOnce(null);
+  it('leaves endSeconds as null if YouTube returns null', async () => {
+    vi.mocked(youtube.fetchYouTubeDuration).mockResolvedValueOnce(null);
 
     const songs = [
       {
@@ -61,7 +67,7 @@ describe('enrichMissingEndTimestamps', () => {
     expect(enriched[0].endSeconds).toBeNull();
   });
 
-  it('does not call iTunes if endSeconds is already set', async () => {
+  it('does not call YouTube if endSeconds is already set', async () => {
     const songs = [
       {
         orderIndex: 0,
@@ -78,11 +84,11 @@ describe('enrichMissingEndTimestamps', () => {
     const enriched = await enrichMissingEndTimestamps(songs);
     
     expect(enriched[0].endSeconds).toBe(300);
-    expect(metadata.fetchItunesMetadata).not.toHaveBeenCalled();
+    expect(youtube.fetchYouTubeDuration).not.toHaveBeenCalled();
   });
 
-  it('catches and ignores iTunes fetch errors', async () => {
-    vi.mocked(metadata.fetchItunesMetadata).mockRejectedValueOnce(new Error('Network error'));
+  it('catches and ignores fetch errors', async () => {
+    vi.mocked(youtube.fetchYouTubeDuration).mockRejectedValueOnce(new Error('Network error'));
 
     const songs = [
       {
