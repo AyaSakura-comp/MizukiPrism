@@ -260,3 +260,44 @@ export function findCandidateComment(comments: Comment[]): Comment | null {
     return best;
   });
 }
+
+// ---------------------------------------------------------------------------
+// iTunes Duration Enrichment
+// ---------------------------------------------------------------------------
+
+import { fetchItunesMetadata } from './metadata';
+
+const OUTRO_BUFFER_SECONDS = 15;
+
+/**
+ * Iterates through parsed songs and attempts to fill any missing endSeconds
+ * by querying the iTunes API for the official track duration.
+ */
+export async function enrichMissingEndTimestamps(songs: ParsedSong[]): Promise<ParsedSong[]> {
+  const result = [...songs];
+  
+  for (let i = 0; i < result.length; i++) {
+    const song = result[i];
+    
+    if (song.endSeconds === null) {
+      try {
+        const itunesResult = await fetchItunesMetadata(song.artist, song.songName);
+        if (itunesResult && itunesResult.data.trackDuration > 0) {
+          const duration = itunesResult.data.trackDuration;
+          const newEndSeconds = song.startSeconds + duration + OUTRO_BUFFER_SECONDS;
+          
+          result[i] = {
+            ...song,
+            endSeconds: newEndSeconds,
+            endTimestamp: secondsToTimestamp(newEndSeconds),
+          };
+        }
+      } catch (error) {
+        // Silently ignore iTunes fetch errors and leave endSeconds as null
+        console.warn(`Failed to fetch iTunes duration for ${song.artist} - ${song.songName}:`, error);
+      }
+    }
+  }
+  
+  return result;
+}

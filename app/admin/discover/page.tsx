@@ -248,7 +248,24 @@ export default function DiscoverPage() {
   // Edit song inline
   function updateSong(index: number, field: string, value: string) {
     setSongs((prev) =>
-      prev.map((s, i) => (i === index ? { ...s, [field]: value } : s))
+      prev.map((s, i) => {
+        if (i !== index) return s;
+        const updated = { ...s, [field]: value };
+        if (field === 'endTimestamp') {
+          // Parse MM:SS or HH:MM:SS back to seconds
+          let sec = null;
+          if (value.trim()) {
+            const parts = value.trim().split(':').map(Number);
+            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+              sec = parts[0] * 60 + parts[1];
+            } else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+              sec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            }
+          }
+          updated.endSeconds = sec;
+        }
+        return updated;
+      })
     );
   }
 
@@ -476,7 +493,14 @@ export default function DiscoverPage() {
                         song.suspicious ? 'bg-yellow-50 border border-yellow-200' : 'bg-gray-50'
                       }`}
                     >
-                      <span className="text-gray-400 text-sm font-mono w-16">{song.startTimestamp}</span>
+                      <span className="text-gray-400 text-sm font-mono w-12">{song.startTimestamp}</span>
+                      <span className="text-gray-400 text-sm">-</span>
+                      <input
+                        value={song.endTimestamp || ''}
+                        onChange={(e) => updateSong(i, 'endTimestamp', e.target.value)}
+                        placeholder="結束 (選填)"
+                        className="w-16 px-1 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none text-sm font-mono text-gray-500"
+                      />
                       <input
                         value={song.songName}
                         onChange={(e) => updateSong(i, 'songName', e.target.value)}

@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchComments } from '@/lib/admin/youtube';
-import { findCandidateComment, parseTextToSongs } from '@/lib/admin/extraction';
+import { findCandidateComment, parseTextToSongs, enrichMissingEndTimestamps } from '@/lib/admin/extraction';
 
 export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV !== 'development') {
@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
 
     // Mode 1: Extract from pasted text
     if (text) {
-      const songs = parseTextToSongs(text);
+      let songs = parseTextToSongs(text);
+      songs = await enrichMissingEndTimestamps(songs);
       return NextResponse.json({
         source: 'text',
         songs,
@@ -39,7 +40,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const songs = parseTextToSongs(candidate.text);
+    let songs = parseTextToSongs(candidate.text);
+    songs = await enrichMissingEndTimestamps(songs);
     return NextResponse.json({
       source: 'comment',
       songs,
