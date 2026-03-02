@@ -45,50 +45,34 @@ test.describe.serial('Admin Discover & Import', () => {
     await page.waitForURL('**/admin');
     await page.goto('/admin/discover');
 
-    // Intercept the extract API to guarantee a fixed end timestamp
-    await page.route('**/api/admin/extract', async (route) => {
-      // Let the real request proceed, but modify the response
-      const response = await route.fetch();
-      const json = await response.json();
-      
-      // Override the last song's endSeconds for deterministic testing
-      if (json.songs && json.songs.length === 3) {
-         json.songs[2].endSeconds = 720 + 240 + 15; // 12:00 start + 4 min duration + 15s buffer = 975
-         json.songs[2].endTimestamp = '16:15';
-      }
-      
-      await route.fulfill({ response, json });
-    });
+    // Use live YouTube fetch instead of manual paste
+    await page.getByTestId('discover-url-input').fill('https://youtu.be/gOdBkLapyLo');
+    await page.getByTestId('discover-fetch-button').click();
 
-    // Enable manual mode and fill song list text
-    await page.getByTestId('manual-mode-toggle').click();
-    await page.getByTestId('manual-title-input').fill('Test Stream');
-    await page.getByTestId('paste-text-input').fill(
-      '0:04:23 誰 / 李友廷\n0:08:26 Shape of You / Ed Sheeran\n0:12:00 夜曲 / 周杰倫'
-    );
-    await page.getByTestId('paste-extract-button').click();
+    // Wait for the extraction to finish and show the results
+    await expect(page.getByTestId('extracted-song-0')).toBeVisible({ timeout: 60000 });
 
-    // Verify extracted songs appear
-    await expect(page.getByTestId('extracted-song-0')).toBeVisible();
-    await expect(page.getByTestId('extracted-song-1')).toBeVisible();
-    await expect(page.getByTestId('extracted-song-2')).toBeVisible();
+    // Verify the first song (浪費 / 林宥嘉) has its end timestamp populated by iTunes (14:45 with 0 buffer)
+    const endInput0 = page.getByTestId('end-timestamp-input-0'); 
+    const val0 = await endInput0.inputValue();
+    console.log("Song 0 End Timestamp:", val0);
+    expect(val0).toBe('14:45');
 
-    // Verify the third song has an auto-filled end timestamp
-    // Assuming the 2nd input element in the song row is the end time input
-    const endInput = page.getByTestId('extracted-song-2').locator('input[placeholder="結束 (選填)"]'); 
-    await expect(endInput).toHaveValue('16:15');
+    // Check the last song (11: "11 / 黃禮格"). Start: 1:57:19. End: 2:01:14
+    await expect(page.getByTestId('extracted-song-11')).toBeVisible();
+    const endInput11 = page.getByTestId('end-timestamp-input-11'); 
+    const val11 = await endInput11.inputValue();
+    console.log("Song 11 End Timestamp:", val11);
+    expect(val11).toBe('2:01:14');
 
-    // Edit a song name inline (video captures the interaction)
-    const songInput = page.getByTestId('extracted-song-1').locator('input[placeholder="歌名"]').first();
-    // if the placeholder is different, let's just use first input or specific test id if they exist.
-    // the previous test had `.locator('input').first()`, I'll use that to avoid breaking
-    const originalSongInput = page.getByTestId('extracted-song-1').locator('input').first();
+    // Edit the first song's name inline (video captures the interaction)
+    const originalSongInput = page.getByTestId('extracted-song-0').locator('input').nth(1);
     await originalSongInput.clear();
-    await originalSongInput.fill('Shape of You (Acoustic)');
+    await originalSongInput.fill('浪費 (Acoustic)');
 
-    // Remove last song
-    await page.getByTestId('extracted-song-2').locator('button').click();
-    await expect(page.getByTestId('extracted-song-2')).not.toBeVisible();
+    // Remove the last song
+    await page.getByTestId('extracted-song-11').locator('button').click();
+    await expect(page.getByTestId('extracted-song-11')).not.toBeVisible();
 
     await page.waitForTimeout(1000);
   });

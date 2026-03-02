@@ -195,14 +195,9 @@ export function parseTextToSongs(text: string): ParsedSong[] {
     const song = rawSongs[i];
     const startSec = song.startSeconds;
 
-    let endSec: number | null;
-    if (song.endSeconds !== undefined) {
-      endSec = song.endSeconds;
-    } else if (i + 1 < rawSongs.length) {
-      endSec = rawSongs[i + 1].startSeconds;
-    } else {
-      endSec = null;
-    }
+    // We no longer infer the end time from the next song.
+    // This allows the enrichment step to fetch the actual track duration from iTunes for EVERY song.
+    let endSec: number | null = song.endSeconds !== undefined ? song.endSeconds : null;
 
     result.push({
       orderIndex: i,
@@ -267,7 +262,7 @@ export function findCandidateComment(comments: Comment[]): Comment | null {
 
 import { fetchItunesMetadata } from './metadata';
 
-const OUTRO_BUFFER_SECONDS = 15;
+const OUTRO_BUFFER_SECONDS = 0;
 
 /**
  * Iterates through parsed songs and attempts to fill any missing endSeconds

@@ -496,10 +496,11 @@ export default function DiscoverPage() {
                       <span className="text-gray-400 text-sm font-mono w-12">{song.startTimestamp}</span>
                       <span className="text-gray-400 text-sm">-</span>
                       <input
+                        data-testid={`end-timestamp-input-${i}`}
                         value={song.endTimestamp || ''}
                         onChange={(e) => updateSong(i, 'endTimestamp', e.target.value)}
-                        placeholder="結束 (選填)"
-                        className="w-16 px-1 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none text-sm font-mono text-gray-500"
+                        placeholder="結束"
+                        className="w-16 px-1 py-1 bg-white/50 border border-gray-200 rounded hover:border-gray-300 focus:border-pink-400 focus:outline-none text-sm font-mono text-gray-900 font-bold"
                       />
                       <input
                         value={song.songName}
