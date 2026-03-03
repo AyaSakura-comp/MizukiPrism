@@ -17,6 +17,12 @@ export interface Song {
   performances: Performance[];
 }
 
+export interface StreamCredit {
+  author: string;
+  authorUrl: string;
+  commentUrl?: string;
+}
+
 export interface Stream {
   id: string;
   channelId?: string;
@@ -24,6 +30,7 @@ export interface Stream {
   date: string;
   videoId: string;
   youtubeUrl: string;
+  credit?: StreamCredit;
 }
 
 export interface Streamer {
