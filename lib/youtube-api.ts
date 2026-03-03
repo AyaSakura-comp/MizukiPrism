@@ -1,4 +1,4 @@
-import { GOOGLE_API_KEY } from './config';
+import { YOUTUBE_API_KEY as GOOGLE_API_KEY } from './config';
 
 const YT_BASE = 'https://www.googleapis.com/youtube/v3';
 

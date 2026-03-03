@@ -23,7 +23,7 @@ import CreatePlaylistDialog from './components/CreatePlaylistDialog';
 import AddToPlaylistDropdown from './components/AddToPlaylistDropdown';
 import AlbumArt from './components/AlbumArt';
 import SidebarNav from './components/SidebarNav';
-import { loadSongsFromSheet, loadMetadataFromSheet, loadStreamsFromSheet } from '@/lib/sheets-data';
+import { loadSongs, loadMetadata, loadStreams } from '@/lib/supabase-data';
 
 interface Performance {
   id: string;
@@ -90,7 +90,7 @@ export default function Home() {
 
   // Fetch songs from API — extracted so the retry button can call it again
   const fetchSongs = () => {
-    loadSongsFromSheet()
+    loadSongs()
       .then((data: Song[]) => {
         // Merge albumArtUrl from metadata map into songs
         const merged = data.map(song => ({
@@ -107,7 +107,7 @@ export default function Home() {
 
   // Fetch metadata on mount and populate albumArtMap, then fetch songs
   useEffect(() => {
-    loadMetadataFromSheet()
+    loadMetadata()
       .catch(() => ({ songMetadata: [], artistInfo: [] }))
       .then((data: { songMetadata: { songId: string; albumArtUrl?: string; albumArtUrls?: { small: string } }[] }) => {
         const map = new Map<string, string>();
@@ -126,7 +126,7 @@ export default function Home() {
         fetchSongs();
       });
 
-    loadStreamsFromSheet()
+    loadStreams()
       .catch(() => [])
       .then((data: {id:string;title:string;date:string;videoId:string}[]) => {
         data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
