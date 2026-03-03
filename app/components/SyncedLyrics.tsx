@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { SongLyrics, LyricLine } from '@/lib/types';
 import { parseLRC, getActiveLyricIndex } from '@/lib/lyrics';
+import { loadLyricsFromSheet } from '@/lib/sheets-data';
 
 interface SyncedLyricsProps {
   songId: string;
@@ -17,8 +18,7 @@ async function fetchLyricsData(): Promise<SongLyrics[]> {
   if (lyricsCache !== null) return lyricsCache;
   if (lyricsFetchPromise) return lyricsFetchPromise;
 
-  lyricsFetchPromise = fetch('/api/lyrics')
-    .then(res => (res.ok ? res.json() : []))
+  lyricsFetchPromise = loadLyricsFromSheet()
     .then((data: SongLyrics[]) => {
       lyricsCache = Array.isArray(data) ? data : [];
       return lyricsCache;
