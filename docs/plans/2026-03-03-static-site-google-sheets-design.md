@@ -55,21 +55,24 @@ One row per performance instead of nested JSON. Frontend groups by `songId` to r
 | **Metadata** | songId, albumArt, artistImageUrl, ... |
 | **Lyrics** | songId, syncedLyrics, plainLyrics |
 
-### API Access: Google Sheets API v4 + YouTube Data API v3
+### API Access: Google Sheets API v4 + YouTube Data API v3 + iTunes API
 - **Sheets API v4** — fan site reads data, admin UI reads+writes data
-- **YouTube Data API v3** — admin UI fetches video info, comments, durations (replaces server-side scraping)
+- **YouTube Data API v3** — admin UI fetches video info, comments, channel profile (replaces server-side scraping)
+- **iTunes API** — song durations and album art (free, no API key, CORS-friendly)
+- **LRCLIB API** — lyrics (free, no API key, CORS-friendly)
 - Single Google Cloud API key, restricted by domain + API scope
 - Free quotas: Sheets 300 req/min, YouTube 10,000 units/day — more than sufficient
 - Exceeding quota returns 429 errors (no auto-billing)
+- YouTube search endpoint is NOT used (saves 100 units/call) — iTunes handles durations instead
 
 ### YouTube Data API v3 Replaces Scraping
 
-| Current (server-side scrape) | New (YouTube Data API v3, client-side) |
+| Current (server-side scrape) | New (client-side API) |
 |-----|---------|
-| Scrape video page HTML for title/duration | `GET /videos?part=snippet,contentDetails&id={videoId}` |
-| Scrape innertube API for comments | `GET /commentThreads?part=snippet&videoId={videoId}` |
-| Scrape search results for song duration | `GET /search?part=snippet&q={query}` + `GET /videos` |
-| Scrape channel page for profile | `GET /channels?part=snippet&id={channelId}` |
+| Scrape video page HTML for title/duration | YouTube Data API: `GET /videos?part=snippet,contentDetails&id={videoId}` |
+| Scrape innertube API for comments | YouTube Data API: `GET /commentThreads?part=snippet&videoId={videoId}` |
+| Scrape search results for song duration | **iTunes API**: `GET /search?term={artist+title}&media=music` (free, no quota) |
+| Scrape channel page for profile | YouTube Data API: `GET /channels?part=snippet&id={channelId}` |
 
 ### Admin Protection: Hidden URL
 - Admin UI deployed at a non-obvious path (e.g., `/admin-{random}`)
@@ -119,6 +122,8 @@ One row per performance instead of nested JSON. Frontend groups by `songId` to r
 | API | Free Quota | Typical Usage |
 |-----|-----------|---------------|
 | Sheets API | 300 req/min | ~3-4 reads per fan page load |
-| YouTube Data API v3 | 10,000 units/day | Video details: 1 unit, comments: 1 unit, search: 100 units |
+| YouTube Data API v3 | 10,000 units/day | ~3 units per stream import (video info + comments + channel) |
+| iTunes API | No quota (free) | Song durations + album art, rate-limited 3s between calls |
+| LRCLIB API | No quota (free) | Lyrics, rate-limited 200ms between calls |
 
-No auto-billing. Exceeding quota = 429 error, not charges.
+No auto-billing. Exceeding quota = 429 error, not charges. YouTube search endpoint is NOT used (saves 100 units/call).

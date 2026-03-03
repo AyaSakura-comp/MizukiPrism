@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Migrate MizukiPrism to a fully static site (no backend) that reads/writes data from Google Sheets, with YouTube Data API v3 replacing server-side scraping.
+**Goal:** Migrate MizukiPrism to a fully static site (no backend) that reads/writes data from Google Sheets, with YouTube Data API v3 for video/comments/channels and iTunes API for song durations.
 
-**Architecture:** Fan site and admin UI both deploy as static HTML/JS on GitHub Pages. Google Sheets is the single source of truth. Fan site reads from Sheets API. Admin UI reads/writes via Sheets API and fetches YouTube data via YouTube Data API v3. All external API calls happen in the browser.
+**Architecture:** Fan site and admin UI both deploy as static HTML/JS on GitHub Pages. Google Sheets is the single source of truth. Fan site reads from Sheets API. Admin UI reads/writes via Sheets API, fetches video info and comments via YouTube Data API v3, and uses iTunes API (free, no key) for song durations and metadata. YouTube search endpoint is NOT used (saves quota). All external API calls happen in the browser.
 
 **Tech Stack:** Next.js 16 (static export), Google Sheets API v4, YouTube Data API v3, TypeScript, React 19
 
@@ -356,7 +356,7 @@ Replaces server-side YouTube scraping with browser-compatible API calls.
 ```typescript
 // lib/admin/__tests__/youtube-api.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchVideoInfo, fetchVideoComments, fetchVideoDuration, fetchChannelInfo } from '../../youtube-api';
+import { fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '../../youtube-api';
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -423,30 +423,6 @@ describe('fetchVideoComments', () => {
     expect(comments).toHaveLength(1);
     expect(comments[0].text).toContain('Song1');
     expect(comments[0].author).toBe('Kirali');
-  });
-});
-
-describe('fetchVideoDuration', () => {
-  beforeEach(() => { mockFetch.mockReset(); });
-
-  it('searches for a song and returns duration in seconds', async () => {
-    // Search returns video IDs
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        items: [{ id: { videoId: 'abc123' } }],
-      }),
-    });
-    // Videos endpoint returns duration
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        items: [{ contentDetails: { duration: 'PT4M30S' } }],
-      }),
-    });
-
-    const duration = await fetchVideoDuration('李友廷', '誰');
-    expect(duration).toBe(270);
   });
 });
 
@@ -564,32 +540,6 @@ export async function fetchVideoComments(
       isPinned: false, // Data API v3 doesn't expose this
     };
   });
-}
-
-/** Search YouTube for a song and return its duration in seconds */
-export async function fetchVideoDuration(
-  artist: string,
-  title: string,
-): Promise<number | null> {
-  const query = encodeURIComponent(`${artist} ${title} official`);
-  const searchUrl = `${YT_BASE}/search?part=snippet&q=${query}&type=video&maxResults=3&key=${GOOGLE_API_KEY}`;
-  const searchRes = await fetch(searchUrl);
-  if (!searchRes.ok) return null;
-  const searchData = await searchRes.json();
-
-  const videoIds = (searchData.items || [])
-    .map((item: any) => item.id?.videoId)
-    .filter(Boolean)
-    .join(',');
-  if (!videoIds) return null;
-
-  const detailUrl = `${YT_BASE}/videos?part=contentDetails&id=${videoIds}&key=${GOOGLE_API_KEY}`;
-  const detailRes = await fetch(detailUrl);
-  if (!detailRes.ok) return null;
-  const detailData = await detailRes.json();
-
-  if (!detailData.items?.length) return null;
-  return parseIsoDuration(detailData.items[0].contentDetails.duration);
 }
 
 export interface ChannelInfo {
@@ -908,7 +858,7 @@ Find `fetch('/api/admin/extract', ...)` and replace with:
 - `fetchVideoComments(videoId)` from `lib/youtube-api.ts`
 - `findCandidateComment(comments)` from `lib/admin/extraction.ts` (reuse existing logic)
 - `parseTextToSongs(text)` from `lib/admin/extraction.ts` (reuse existing logic)
-- Duration enrichment: replace `fetchYouTubeDuration()` from youtube.ts with `fetchVideoDuration()` from `lib/youtube-api.ts`
+- Duration enrichment: use `fetchItunesMetadata()` from `lib/admin/metadata.ts` (already CORS-friendly, free, no quota)
 
 **Step 3: Replace import API call**
 
@@ -941,9 +891,9 @@ git commit -m "feat: migrate admin discover page to client-side YouTube + Sheets
 
 ---
 
-## Task 7: Update Extraction Library for Client-Side Duration Enrichment
+## Task 7: Update Extraction Library to Use iTunes for Duration Enrichment
 
-The existing `enrichMissingEndTimestamps()` in `lib/admin/extraction.ts` calls `fetchYouTubeDuration()` from the old `youtube.ts`. Update it to use the new YouTube Data API client.
+The existing `enrichMissingEndTimestamps()` in `lib/admin/extraction.ts` calls `fetchYouTubeDuration()` from the old `youtube.ts` (server-side scraping). Update it to use `fetchItunesMetadata()` from `lib/admin/metadata.ts` instead. iTunes API is free, CORS-friendly, and already returns `trackDuration` in seconds.
 
 **Files:**
 - Modify: `lib/admin/extraction.ts`
@@ -956,14 +906,21 @@ import { fetchYouTubeDuration } from './youtube';
 ```
 With:
 ```typescript
-import { fetchVideoDuration } from '../youtube-api';
+import { fetchItunesMetadata } from './metadata';
 ```
 
 **Step 2: Update enrichMissingEndTimestamps()**
 
-Replace the call to `fetchYouTubeDuration(artist, title)` with `fetchVideoDuration(artist, title)`. The signature is the same (returns `number | null`).
+Replace the call to `fetchYouTubeDuration(artist, title)` with a call to `fetchItunesMetadata(artist, title)`. Extract `trackDuration` from the result:
 
-Note: The YouTube Data API search costs 100 quota units per call. With 10,000 units/day, that's ~100 searches/day. A typical stream import has ~15 songs needing enrichment, so this is fine.
+```typescript
+const result = await fetchItunesMetadata(artist, title);
+const duration = result?.data?.trackDuration ?? null;
+```
+
+If `duration` is found, set `endSeconds = startSeconds + duration`.
+
+Note: iTunes API is free with no quota. Rate limit is 3000ms between calls (already configured in metadata.ts).
 
 **Step 3: Run existing extraction tests**
 
@@ -974,7 +931,7 @@ Expected: PASS (tests mock the duration function)
 
 ```bash
 git add lib/admin/extraction.ts
-git commit -m "refactor: update extraction to use YouTube Data API for duration enrichment"
+git commit -m "refactor: update extraction to use iTunes API for duration enrichment"
 ```
 
 ---
@@ -1104,9 +1061,11 @@ git commit -m "chore: finalize static export configuration"
 | 4 | Sheets data layer (row → Song/Stream) | Medium |
 | 5 | Migrate fan page to Sheets data | Medium |
 | 6 | Migrate admin page to client-side APIs | High |
-| 7 | Update extraction for client-side duration | Low |
+| 7 | Update extraction to use iTunes for durations | Low |
 | 8 | Remove server-side code | Low |
 | 9 | Update E2E tests | Medium |
 | 10 | Verify static export and deploy | Low |
 
-**Dependencies:** Task 1 → Tasks 2, 4, 5, 6. Task 3 → Tasks 6, 7. Task 8 depends on Tasks 5-7 being complete.
+**Dependencies:** Task 1 → Tasks 2, 4, 5, 6. Task 3 → Task 6. Task 7 is independent (uses existing metadata.ts). Task 8 depends on Tasks 5-7 being complete.
+
+**API usage per stream import:** ~3 YouTube API units (video info + comments + channel). Song durations via iTunes (free, no quota). No YouTube search used.
