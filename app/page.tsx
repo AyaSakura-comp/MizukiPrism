@@ -23,6 +23,7 @@ import CreatePlaylistDialog from './components/CreatePlaylistDialog';
 import AddToPlaylistDropdown from './components/AddToPlaylistDropdown';
 import AlbumArt from './components/AlbumArt';
 import SidebarNav from './components/SidebarNav';
+import { loadSongsFromSheet, loadMetadataFromSheet, loadStreamsFromSheet } from '@/lib/sheets-data';
 
 interface Performance {
   id: string;
@@ -89,11 +90,7 @@ export default function Home() {
 
   // Fetch songs from API — extracted so the retry button can call it again
   const fetchSongs = () => {
-    fetch('/api/songs')
-      .then(res => {
-        if (!res.ok) throw new Error('API error');
-        return res.json();
-      })
+    loadSongsFromSheet()
       .then((data: Song[]) => {
         // Merge albumArtUrl from metadata map into songs
         const merged = data.map(song => ({
@@ -110,8 +107,8 @@ export default function Home() {
 
   // Fetch metadata on mount and populate albumArtMap, then fetch songs
   useEffect(() => {
-    fetch('/api/metadata')
-      .then(res => (res.ok ? res.json() : { songMetadata: [], artistInfo: [] }))
+    loadMetadataFromSheet()
+      .catch(() => ({ songMetadata: [], artistInfo: [] }))
       .then((data: { songMetadata: { songId: string; albumArtUrl?: string; albumArtUrls?: { small: string } }[] }) => {
         const map = new Map<string, string>();
         for (const entry of data.songMetadata) {
@@ -129,8 +126,8 @@ export default function Home() {
         fetchSongs();
       });
 
-    fetch('/api/streams')
-      .then(res => res.ok ? res.json() : [])
+    loadStreamsFromSheet()
+      .catch(() => [])
       .then((data: {id:string;title:string;date:string;videoId:string}[]) => {
         data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setStreams(data);
