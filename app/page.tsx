@@ -2,15 +2,6 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Play, Shuffle, ExternalLink, Mic2, Youtube, Twitter, Facebook, Instagram, Twitch, Sparkles, ListMusic, Clock, Heart, Disc3, ChevronDown, ChevronRight, Plus, ListPlus, X, SlidersHorizontal, User, WifiOff, ChevronLeft, MoreHorizontal, House } from 'lucide-react';
-import streamersData from '@/data/streamer.json';
-import streamsData from '@/data/streams.json';
-
-// For backward compat with existing single-streamer references
-const streamerData = {
-  ...streamersData[0],
-  name: streamersData[0]?.displayName ?? '',
-  subTitle: 'Official Song Archive',
-};
 import { usePlayer } from './contexts/PlayerContext';
 import { usePlaylist } from './contexts/PlaylistContext';
 import { useLikedSongs } from './contexts/LikedSongsContext';
@@ -84,8 +75,22 @@ export default function Home() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [selectedStreamers, setSelectedStreamers] = useState<string[]>([]);
-  const [streamers, setStreamers] = useState<{ channelId: string; handle: string; displayName: string; avatarUrl: string; description: string }[]>([]);
+  const [streamers, setStreamers] = useState<{ channelId: string; handle: string; displayName: string; avatarUrl: string; description: string; social_links?: Record<string, string> }[]>([]);
   // empty array = "All"
+
+  // Primary streamer profile for the banner/header (first streamer in DB)
+  const streamerData = useMemo(() => {
+    const s = streamers[0];
+    return {
+      channelId: s?.channelId ?? '',
+      name: s?.displayName ?? '',
+      displayName: s?.displayName ?? '',
+      avatarUrl: s?.avatarUrl ?? '',
+      description: s?.description ?? '',
+      subTitle: 'Official Song Archive',
+      socialLinks: s?.social_links ?? {},
+    };
+  }, [streamers]);
   // Map from songId to albumArtUrl — populated from /api/metadata
   const albumArtMapRef = useRef<Map<string, string>>(new Map());
 
