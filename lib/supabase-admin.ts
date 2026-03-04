@@ -177,19 +177,27 @@ export async function importStreamWithSongs(params: {
       songsCreated++;
     }
 
-    // Upsert performance (by video_id + timestamp to avoid dupes)
-    const { error: perfErr } = await supabase.from('performances').upsert({
-      id: generateId('perf'),
-      song_id: songId,
-      stream_id: streamId,
-      date,
-      stream_title: title,
-      video_id: videoId,
-      timestamp_sec: s.startSeconds,
-      end_timestamp_sec: s.endSeconds,
-      note: s.note ?? '',
-    }, { onConflict: 'stream_id,timestamp_sec' });
-    if (perfErr && !perfErr.message.includes('duplicate')) throw new Error(perfErr.message);
+    // Insert performance (skip if already exists for this stream+timestamp)
+    const { data: existingPerf } = await supabase
+      .from('performances')
+      .select('id')
+      .eq('stream_id', streamId)
+      .eq('timestamp_sec', s.startSeconds)
+      .single();
+    if (!existingPerf) {
+      const { error: perfErr } = await supabase.from('performances').insert({
+        id: generateId('perf'),
+        song_id: songId,
+        stream_id: streamId,
+        date,
+        stream_title: title,
+        video_id: videoId,
+        timestamp_sec: s.startSeconds,
+        end_timestamp_sec: s.endSeconds,
+        note: s.note ?? '',
+      });
+      if (perfErr) throw new Error(perfErr.message);
+    }
   }
 
   return { streamId, songsCreated, songsUpdated };

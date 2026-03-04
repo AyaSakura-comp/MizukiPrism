@@ -125,6 +125,18 @@ export default function DiscoverPage() {
     }
   }
 
+  // Strip HTML tags from YouTube comment textDisplay, converting <br> to newlines
+  function stripHtml(html: string): string {
+    return html
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+  }
+
   // Step 2: Extract songs from comments
   async function handleExtract(videoId: string) {
     try {
@@ -133,13 +145,13 @@ export default function DiscoverPage() {
         cid: c.cid,
         author: c.author,
         authorUrl: c.authorUrl,
-        text: c.text,
+        text: stripHtml(c.text),
         votes: c.likeCount,
         isPinned: c.isPinned,
       })));
 
       if (candidate) {
-        let parsed = parseTextToSongs(candidate.text);
+        let parsed = parseTextToSongs(stripHtml(candidate.text));
         // Enrich missing end timestamps via iTunes
         parsed = await Promise.all(parsed.map(async (s, i) => {
           if (s.endSeconds !== null) return s;

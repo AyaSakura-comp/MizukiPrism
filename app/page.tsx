@@ -253,11 +253,11 @@ export default function Home() {
   // Build streamId → channelId map from streams data
   const streamChannelMap = useMemo(() => {
     const map = new Map<string, string>();
-    for (const s of streamsData) {
+    for (const s of streams) {
       if ((s as any).channelId) map.set(s.id, (s as any).channelId);
     }
     return map;
-  }, []);
+  }, [streams]);
 
   const filteredStreams = useMemo(() => {
     if (selectedYears.size === 0) return streams;
