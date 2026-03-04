@@ -77,6 +77,19 @@ export async function loadStreams(): Promise<Stream[]> {
   }));
 }
 
+/** Load all streamers from Supabase */
+export async function loadStreamers(): Promise<{ channelId: string; handle: string; displayName: string; avatarUrl: string; description: string }[]> {
+  const { data, error } = await supabase.from('streamers').select('*');
+  if (error) throw new Error(`Supabase error: ${error.message}`);
+  return (data ?? []).map((row) => ({
+    channelId: row.channel_id,
+    handle: row.handle ?? '',
+    displayName: row.display_name ?? '',
+    avatarUrl: row.avatar_url ?? '',
+    description: row.description ?? '',
+  }));
+}
+
 /** Load song metadata from Supabase */
 export async function loadMetadata(): Promise<{ songMetadata: SongMetadata[]; artistInfo: ArtistInfo[] }> {
   const { data, error } = await supabase

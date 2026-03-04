@@ -23,7 +23,7 @@ import CreatePlaylistDialog from './components/CreatePlaylistDialog';
 import AddToPlaylistDropdown from './components/AddToPlaylistDropdown';
 import AlbumArt from './components/AlbumArt';
 import SidebarNav from './components/SidebarNav';
-import { loadSongs, loadMetadata, loadStreams } from '@/lib/supabase-data';
+import { loadSongs, loadMetadata, loadStreams, loadStreamers } from '@/lib/supabase-data';
 
 interface Performance {
   id: string;
@@ -84,6 +84,7 @@ export default function Home() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [selectedStreamers, setSelectedStreamers] = useState<string[]>([]);
+  const [streamers, setStreamers] = useState<{ channelId: string; handle: string; displayName: string; avatarUrl: string; description: string }[]>([]);
   // empty array = "All"
   // Map from songId to albumArtUrl — populated from /api/metadata
   const albumArtMapRef = useRef<Map<string, string>>(new Map());
@@ -134,6 +135,12 @@ export default function Home() {
       })
       .catch(() => {
         // streams fetch failed — continue without stream list
+      });
+
+    loadStreamers()
+      .then(setStreamers)
+      .catch(() => {
+        // streamers fetch failed — continue without streamer list
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -245,10 +252,10 @@ export default function Home() {
 
   // Build channelId → streamer map
   const streamerMap = useMemo(() => {
-    const map = new Map<string, typeof streamersData[0]>();
-    for (const s of streamersData) map.set(s.channelId, s);
+    const map = new Map<string, typeof streamers[0]>();
+    for (const s of streamers) map.set(s.channelId, s);
     return map;
-  }, []);
+  }, [streamers]);
 
   // Build streamId → channelId map from streams data
   const streamChannelMap = useMemo(() => {
@@ -1062,7 +1069,7 @@ export default function Home() {
           </div>
 
           {/* Streamer switcher */}
-          {streamersData.length > 1 && (
+          {streamers.length > 1 && (
             <div data-testid="streamer-switcher" className="flex items-center gap-1.5 flex-wrap px-6" style={{ marginBottom: '8px', marginTop: '8px' }}>
               <button
                 data-testid="streamer-filter-all"
@@ -1080,7 +1087,7 @@ export default function Home() {
               >
                 All
               </button>
-              {streamersData.map((s) => (
+              {streamers.map((s) => (
                 <button
                   key={s.channelId}
                   data-testid={`streamer-filter-${s.channelId}`}
