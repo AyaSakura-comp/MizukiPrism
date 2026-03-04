@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle } from 'lucide-react';
 import { fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '@/lib/youtube-api';
 import { parseTextToSongs, findCandidateComment, secondsToTimestamp } from '@/lib/admin/extraction';
-import { isAuthenticated, importStreamWithSongs, saveStreamer } from '@/lib/supabase-admin';
+import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchMusicBrainzDuration } from '@/lib/supabase-admin';
 import { supabase } from '@/lib/supabase';
 import { extractVideoId } from '@/lib/utils';
 
@@ -152,21 +152,20 @@ export default function DiscoverPage() {
 
       if (candidate) {
         let parsed = parseTextToSongs(stripHtml(candidate.text));
-        // Enrich missing end timestamps via iTunes
-        parsed = await Promise.all(parsed.map(async (s, i) => {
-          if (s.endSeconds !== null) return s;
-          const next = parsed[i + 1];
-          if (next) {
-            const endSec = next.startSeconds;
-            return { ...s, endSeconds: endSec, endTimestamp: secondsToTimestamp(endSec) };
+        // Enrich end timestamps via MusicBrainz (1 req/sec rate limit)
+        for (let i = 0; i < parsed.length; i++) {
+          const s = parsed[i];
+          if (s.endSeconds !== null) continue;
+          // Wait 1.1s between requests to respect MusicBrainz rate limit
+          if (i > 0) await new Promise(r => setTimeout(r, 1100));
+          const dur = await fetchMusicBrainzDuration(s.artist, s.songName);
+          if (dur) {
+            parsed[i] = { ...s, endSeconds: s.startSeconds + dur, endTimestamp: secondsToTimestamp(s.startSeconds + dur) };
+          } else if (i === parsed.length - 1 && videoDurationSeconds) {
+            // Last song fallback: use video end time
+            parsed[i] = { ...s, endSeconds: videoDurationSeconds, endTimestamp: secondsToTimestamp(videoDurationSeconds) };
           }
-          // Last song: use video duration if available
-          if (videoDurationSeconds) {
-            const endSec = videoDurationSeconds;
-            return { ...s, endSeconds: endSec, endTimestamp: secondsToTimestamp(endSec) };
-          }
-          return s;
-        }));
+        }
         setSongs(parsed as any[]);
         setExtractionSource('comment');
         setCommentAuthor(candidate.author ?? null);

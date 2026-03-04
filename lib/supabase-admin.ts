@@ -95,19 +95,19 @@ export async function updateSong(
   if (error) throw new Error(error.message);
 }
 
-// ---- iTunes Duration (client-side, no API key needed) ----
+// ---- MusicBrainz Duration (browser-safe, CORS-friendly, no API key) ----
 
-export async function fetchItunesDuration(artist: string, title: string): Promise<number | null> {
+export async function fetchMusicBrainzDuration(artist: string, title: string): Promise<number | null> {
   try {
-    const q = encodeURIComponent(`${artist} ${title}`);
-    const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=5`);
+    const q = encodeURIComponent(`artist:${artist} recording:${title}`);
+    const res = await fetch(
+      `https://musicbrainz.org/ws/2/recording/?query=${q}&fmt=json&limit=5`,
+      { headers: { 'User-Agent': 'MizukiPrism/1.0 (github.com/AyaSakura-comp/MizukiPrism)' } }
+    );
     if (!res.ok) return null;
     const data = await res.json();
-    const results = data.results ?? [];
-    for (const r of results) {
-      if (r.trackTimeMillis && r.trackTimeMillis > 0) {
-        return Math.round(r.trackTimeMillis / 1000);
-      }
+    for (const r of data.recordings ?? []) {
+      if (r.length && r.length > 0) return Math.round(r.length / 1000);
     }
     return null;
   } catch {
