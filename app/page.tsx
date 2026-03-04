@@ -271,6 +271,18 @@ export default function Home() {
     return map;
   }, [streams]);
 
+  // Only show streamer filter buttons for streamers that have songs in the catalog
+  const streamersWithSongs = useMemo(() => {
+    const channelIdsWithSongs = new Set<string>();
+    for (const song of songs) {
+      for (const perf of song.performances) {
+        const chId = streamChannelMap.get(perf.streamId || '');
+        if (chId) channelIdsWithSongs.add(chId);
+      }
+    }
+    return streamers.filter(s => channelIdsWithSongs.has(s.channelId));
+  }, [streamers, songs, streamChannelMap]);
+
   const filteredStreams = useMemo(() => {
     if (selectedYears.size === 0) return streams;
     return streams.filter(s => selectedYears.has(new Date(s.date).getFullYear()));
@@ -1074,7 +1086,7 @@ export default function Home() {
           </div>
 
           {/* Streamer switcher */}
-          {streamers.length > 1 && (
+          {streamersWithSongs.length > 1 && (
             <div data-testid="streamer-switcher" className="flex items-center gap-1.5 flex-wrap px-6" style={{ marginBottom: '8px', marginTop: '8px' }}>
               <button
                 data-testid="streamer-filter-all"
@@ -1092,7 +1104,7 @@ export default function Home() {
               >
                 All
               </button>
-              {streamers.map((s) => (
+              {streamersWithSongs.map((s) => (
                 <button
                   key={s.channelId}
                   data-testid={`streamer-filter-${s.channelId}`}
