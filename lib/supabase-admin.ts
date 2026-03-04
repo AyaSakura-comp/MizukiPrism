@@ -152,42 +152,52 @@ export async function importStreamWithSongs(params: {
   let songsCreated = 0;
   let songsUpdated = 0;
 
-  for (const s of songs) {
-    // Find or create song
-    const { data: existing } = await supabase
-      .from('songs')
-      .select('id')
-      .ilike('title', s.songName)
-      .ilike('original_artist', s.artist)
-      .single();
+  // Batch fetch existing songs and performances in 2 queries
+  const songKeys = songs.map(s => `${s.songName.toLowerCase()}|||${s.artist.toLowerCase()}`);
+  const { data: existingSongs } = await supabase
+    .from('songs')
+    .select('id, title, original_artist')
+    .in('title', songs.map(s => s.songName));
 
-    let songId: string;
-    if (existing) {
-      songId = existing.id;
+  const { data: existingPerfs } = await supabase
+    .from('performances')
+    .select('timestamp_sec')
+    .eq('stream_id', streamId);
+
+  const existingSongMap = new Map<string, string>();
+  for (const row of existingSongs ?? []) {
+    existingSongMap.set(`${row.title.toLowerCase()}|||${row.original_artist.toLowerCase()}`, row.id);
+  }
+  const existingPerfTimestamps = new Set((existingPerfs ?? []).map(p => p.timestamp_sec));
+
+  // Insert new songs in bulk
+  const newSongRows: { id: string; title: string; original_artist: string; tags: string[] }[] = [];
+  const songIdMap = new Map<string, string>();
+  for (const s of songs) {
+    const key = `${s.songName.toLowerCase()}|||${s.artist.toLowerCase()}`;
+    if (existingSongMap.has(key)) {
+      songIdMap.set(key, existingSongMap.get(key)!);
       songsUpdated++;
-    } else {
-      songId = generateId('song');
-      const { error: songErr } = await supabase.from('songs').insert({
-        id: songId,
-        title: s.songName,
-        original_artist: s.artist,
-        tags: [],
-      });
-      if (songErr) throw new Error(songErr.message);
+    } else if (!songIdMap.has(key)) {
+      const id = generateId('song');
+      newSongRows.push({ id, title: s.songName, original_artist: s.artist, tags: [] });
+      songIdMap.set(key, id);
       songsCreated++;
     }
+  }
+  if (newSongRows.length > 0) {
+    const { error: songErr } = await supabase.from('songs').insert(newSongRows);
+    if (songErr) throw new Error(songErr.message);
+  }
 
-    // Insert performance (skip if already exists for this stream+timestamp)
-    const { data: existingPerf } = await supabase
-      .from('performances')
-      .select('id')
-      .eq('stream_id', streamId)
-      .eq('timestamp_sec', s.startSeconds)
-      .single();
-    if (!existingPerf) {
-      const { error: perfErr } = await supabase.from('performances').insert({
+  // Insert new performances in bulk
+  const newPerfRows = songs
+    .filter(s => !existingPerfTimestamps.has(s.startSeconds))
+    .map(s => {
+      const key = `${s.songName.toLowerCase()}|||${s.artist.toLowerCase()}`;
+      return {
         id: generateId('perf'),
-        song_id: songId,
+        song_id: songIdMap.get(key)!,
         stream_id: streamId,
         date,
         stream_title: title,
@@ -195,9 +205,11 @@ export async function importStreamWithSongs(params: {
         timestamp_sec: s.startSeconds,
         end_timestamp_sec: s.endSeconds,
         note: s.note ?? '',
-      });
-      if (perfErr) throw new Error(perfErr.message);
-    }
+      };
+    });
+  if (newPerfRows.length > 0) {
+    const { error: perfErr } = await supabase.from('performances').insert(newPerfRows);
+    if (perfErr) throw new Error(perfErr.message);
   }
 
   return { streamId, songsCreated, songsUpdated };
