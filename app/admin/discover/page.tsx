@@ -5,8 +5,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle } from 'lucide-react';
 import { fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '@/lib/youtube-api';
-import { parseTextToSongs, findCandidateComment } from '@/lib/admin/extraction';
-import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchItunesDuration } from '@/lib/supabase-admin';
+import { parseTextToSongs, findCandidateComment, secondsToTimestamp } from '@/lib/admin/extraction';
+import { isAuthenticated, importStreamWithSongs, saveStreamer } from '@/lib/supabase-admin';
 import { supabase } from '@/lib/supabase';
 import { extractVideoId } from '@/lib/utils';
 
@@ -107,7 +107,7 @@ export default function DiscoverPage() {
         setShowStreamerConfirm(true);
       } else {
         setStep('extracting');
-        handleExtract(info.videoId);
+        handleExtract(info.videoId, info.durationSeconds);
       }
     } catch (err) {
       setError(String(err));
@@ -119,7 +119,7 @@ export default function DiscoverPage() {
       await saveStreamer(streamerProfile);
       setShowStreamerConfirm(false);
       setStep('extracting');
-      handleExtract(videoInfo!.videoId);
+      handleExtract(videoInfo!.videoId, videoInfo!.durationSeconds);
     } catch (err) {
       setError(String(err));
     }
@@ -138,7 +138,7 @@ export default function DiscoverPage() {
   }
 
   // Step 2: Extract songs from comments
-  async function handleExtract(videoId: string) {
+  async function handleExtract(videoId: string, videoDurationSeconds?: number) {
     try {
       const comments = await fetchVideoComments(videoId, 20);
       const candidate = findCandidateComment(comments.map(c => ({
@@ -156,9 +156,15 @@ export default function DiscoverPage() {
         parsed = await Promise.all(parsed.map(async (s, i) => {
           if (s.endSeconds !== null) return s;
           const next = parsed[i + 1];
-          if (next) return { ...s, endSeconds: next.startSeconds };
-          const dur = await fetchItunesDuration(s.artist, s.songName);
-          if (dur) return { ...s, endSeconds: s.startSeconds + dur };
+          if (next) {
+            const endSec = next.startSeconds;
+            return { ...s, endSeconds: endSec, endTimestamp: secondsToTimestamp(endSec) };
+          }
+          // Last song: use video duration if available
+          if (videoDurationSeconds) {
+            const endSec = videoDurationSeconds;
+            return { ...s, endSeconds: endSec, endTimestamp: secondsToTimestamp(endSec) };
+          }
           return s;
         }));
         setSongs(parsed as any[]);
@@ -416,7 +422,7 @@ export default function DiscoverPage() {
                 onClick={() => {
                   setShowStreamerConfirm(false);
                   setStep('extracting');
-                  handleExtract(videoInfo!.videoId);
+                  handleExtract(videoInfo!.videoId, videoInfo!.durationSeconds);
                 }}
                 className="px-4 py-2 text-gray-500 hover:text-gray-700"
               >
