@@ -3,7 +3,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Search, Download, Check, Edit2, Trash2, Plus, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle } from 'lucide-react';
+import { fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '@/lib/youtube-api';
+import { parseTextToSongs, findCandidateComment } from '@/lib/admin/extraction';
+import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchItunesDuration } from '@/lib/supabase-admin';
+import { supabase } from '@/lib/supabase';
+import { extractVideoId } from '@/lib/utils';
 
 interface VideoInfo {
   videoId: string;
@@ -54,40 +59,55 @@ export default function DiscoverPage() {
 
   // Auth check
   useEffect(() => {
-    fetch('/api/auth/check', { method: 'POST' })
-      .then((res) => {
-        if (!res.ok) router.replace('/admin/login');
-        else setAuthenticated(true);
-      });
+    if (!isAuthenticated()) router.replace('/admin/login');
+    else setAuthenticated(true);
   }, [router]);
 
   // Step 1: Fetch video info
   async function handleFetchVideo() {
     setError(null);
     try {
-      const res = await fetch('/api/admin/discover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setVideoInfo(data);
-      setChannelId(data.channelId || '');
+      const videoId = extractVideoId(url);
+      if (!videoId) throw new Error('Invalid YouTube URL');
 
-      if (data.isNewStreamer && data.channelId) {
-        // Fetch channel profile for confirmation
-        const profileRes = await fetch('/api/admin/streamer', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ channelId: data.channelId, action: 'fetch' }),
+      const info = await fetchVideoInfo(videoId);
+
+      // Check if streamer is new
+      const { data: existingStreamer } = await supabase
+        .from('streamers')
+        .select('channel_id, display_name')
+        .eq('channel_id', info.channelId)
+        .single();
+
+      const data = {
+        videoId: info.videoId,
+        title: info.title,
+        date: info.date,
+        description: info.description,
+        durationSeconds: info.durationSeconds,
+        channelId: info.channelId,
+        channelName: info.channelName,
+        channelHandle: null as string | null,
+        isNewStreamer: !existingStreamer,
+        existingStreamer: existingStreamer || null,
+      };
+
+      setVideoInfo(data);
+      setChannelId(info.channelId);
+
+      if (data.isNewStreamer && info.channelId) {
+        const profile = await fetchChannelInfo(info.channelId);
+        setStreamerProfile({
+          channelId: profile.channelId,
+          handle: profile.handle,
+          displayName: profile.displayName,
+          avatarUrl: profile.avatarUrl,
+          description: profile.description,
         });
-        const profile = await profileRes.json();
-        setStreamerProfile(profile);
         setShowStreamerConfirm(true);
       } else {
         setStep('extracting');
-        handleExtract(data.videoId);
+        handleExtract(info.videoId);
       }
     } catch (err) {
       setError(String(err));
@@ -96,11 +116,7 @@ export default function DiscoverPage() {
 
   async function handleConfirmStreamer() {
     try {
-      await fetch('/api/admin/streamer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...streamerProfile, action: 'save' }),
-      });
+      await saveStreamer(streamerProfile);
       setShowStreamerConfirm(false);
       setStep('extracting');
       handleExtract(videoInfo!.videoId);
@@ -112,26 +128,36 @@ export default function DiscoverPage() {
   // Step 2: Extract songs from comments
   async function handleExtract(videoId: string) {
     try {
-      const res = await fetch('/api/admin/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ videoId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const comments = await fetchVideoComments(videoId, 20);
+      const candidate = findCandidateComment(comments.map(c => ({
+        cid: c.cid,
+        author: c.author,
+        authorUrl: c.authorUrl,
+        text: c.text,
+        votes: c.likeCount,
+        isPinned: c.isPinned,
+      })));
 
-      setSongs(data.songs || []);
-      setExtractionSource(data.source);
-      setCommentAuthor(data.commentAuthor || null);
-
-      if (data.songs?.length > 0) {
+      if (candidate) {
+        let parsed = parseTextToSongs(candidate.text);
+        // Enrich missing end timestamps via iTunes
+        parsed = await Promise.all(parsed.map(async (s, i) => {
+          if (s.endSeconds !== null) return s;
+          const next = parsed[i + 1];
+          if (next) return { ...s, endSeconds: next.startSeconds };
+          const dur = await fetchItunesDuration(s.artist, s.songName);
+          if (dur) return { ...s, endSeconds: s.startSeconds + dur };
+          return s;
+        }));
+        setSongs(parsed as any[]);
+        setExtractionSource('comment');
+        setCommentAuthor(candidate.author ?? null);
         setStep('review');
       } else {
         setPasteMode(true);
         setStep('review');
       }
-    } catch (err) {
-      setError(String(err));
+    } catch {
       setPasteMode(true);
       setStep('review');
     }
@@ -140,13 +166,8 @@ export default function DiscoverPage() {
   // Extract from pasted text
   async function handlePasteExtract() {
     try {
-      const res = await fetch('/api/admin/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: pastedText }),
-      });
-      const data = await res.json();
-      setSongs(data.songs || []);
+      const parsed = parseTextToSongs(pastedText);
+      setSongs(parsed as any[]);
       setExtractionSource('text');
       setPasteMode(false);
     } catch (err) {
@@ -159,12 +180,7 @@ export default function DiscoverPage() {
     if (!manualTitle || !pastedText) return;
     setError(null);
     try {
-      const res = await fetch('/api/admin/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: pastedText }),
-      });
-      const data = await res.json();
+      const parsed = parseTextToSongs(pastedText);
       const manualId = `manual${Date.now()}`;
       setVideoInfo({
         videoId: manualId,
@@ -178,7 +194,7 @@ export default function DiscoverPage() {
         isNewStreamer: false,
         existingStreamer: null,
       });
-      setSongs(data.songs || []);
+      setSongs(parsed as any[]);
       setExtractionSource('text');
       setPasteMode(false);
       setStep('review');
@@ -192,56 +208,31 @@ export default function DiscoverPage() {
     if (!videoInfo) return;
     setStep('importing');
     try {
-      const res = await fetch('/api/admin/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videoId: videoInfo.videoId,
-          title: videoInfo.title,
-          date: videoInfo.date,
-          youtubeUrl: `https://www.youtube.com/watch?v=${videoInfo.videoId}`,
-          channelId,
-          songs: songs.map((s) => ({
-            songName: s.songName,
-            artist: s.artist,
-            startSeconds: s.startSeconds,
-            endSeconds: s.endSeconds,
-          })),
-          credit: commentAuthor ? {
-            author: commentAuthor,
-            authorUrl: '',
-          } : undefined,
-        }),
+      const result = await importStreamWithSongs({
+        videoId: videoInfo.videoId,
+        title: videoInfo.title,
+        date: videoInfo.date,
+        youtubeUrl: `https://www.youtube.com/watch?v=${videoInfo.videoId}`,
+        channelId: channelId || undefined,
+        songs: songs.map((s) => ({
+          songName: s.songName,
+          artist: s.artist,
+          startSeconds: s.startSeconds,
+          endSeconds: s.endSeconds,
+          note: '',
+        })),
+        credit: commentAuthor ? { author: commentAuthor, authorUrl: '' } : undefined,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setImportResult(data);
+      setImportResult({
+        newSongs: result.songsCreated,
+        existingSongMatches: result.songsUpdated,
+        newPerformances: songs.length,
+        isOverwrite: false,
+      });
       setStep('done');
-
-      // Auto-fetch metadata for new songs (fire and forget)
-      fetchMetadataForNewSongs(songs);
     } catch (err) {
       setError(String(err));
       setStep('review');
-    }
-  }
-
-  // Background metadata fetch
-  async function fetchMetadataForNewSongs(songList: ExtractedSong[]) {
-    for (const song of songList) {
-      try {
-        await fetch('/api/admin/metadata', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            songId: '', // Will be matched by title+artist in the API
-            artist: song.artist,
-            title: song.songName,
-          }),
-        });
-      } catch {
-        // Non-critical, continue with next song
-      }
     }
   }
 

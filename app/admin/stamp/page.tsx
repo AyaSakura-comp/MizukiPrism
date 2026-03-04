@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { Song, Stream, Performance } from '@/lib/types';
 import { secondsToTimestamp, timestampToSeconds } from '@/lib/utils';
+import { loadSongs, loadStreams } from '@/lib/supabase-data';
+import { isAuthenticated, updatePerformance } from '@/lib/supabase-admin';
 
 // --- Components ---
 
@@ -87,32 +89,23 @@ export default function StampPage() {
   // --- Auth & Data Loading ---
 
   useEffect(() => {
-    fetch('/api/auth/check', { method: 'POST' })
-      .then((res) => {
-        if (!res.ok) router.replace('/admin/login');
-        else {
-          setAuthenticated(true);
-          fetchData();
-        }
-      })
-      .catch(() => router.replace('/admin/login'));
+    if (!isAuthenticated()) {
+      router.replace('/admin/login');
+    } else {
+      setAuthenticated(true);
+      fetchData();
+    }
   }, [router]);
 
   async function fetchData() {
     try {
-      const [streamsRes, songsRes] = await Promise.all([
-        fetch('/api/streams'),
-        fetch('/api/songs'),
-      ]);
       const [streamsData, songsData] = await Promise.all([
-        streamsRes.json(),
-        songsRes.json(),
+        loadStreams(),
+        loadSongs(),
       ]);
-      console.log('Loaded streams:', streamsData.length);
-      console.log('Loaded songs:', songsData.length);
-      setStreams(streamsData.sort((a: Stream, b: Stream) => b.date.localeCompare(a.date)));
+      setStreams((streamsData as Stream[]).sort((a, b) => b.date.localeCompare(a.date)));
       setSongs(songsData);
-    } catch (err) {
+    } catch {
       setError('載入資料失敗');
     } finally {
       setLoading(false);
@@ -229,13 +222,8 @@ export default function StampPage() {
     };
 
     try {
-      const res = await fetch('/api/versions/manage', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error('儲存失敗');
-      
+      await updatePerformance(body.id, body.startTimestamp, body.endTimestamp, body.note);
+
       // Refresh local state
       setSongs(prev => prev.map(s => {
         if (s.performances.some(p => p.id === perfId)) {

@@ -3,39 +3,25 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mic2, Lock } from 'lucide-react';
+import { login } from '@/lib/supabase-admin';
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        router.push('/admin');
-        router.refresh();
-      } else {
-        setError(data.error || '登入失敗');
-      }
-    } catch {
-      setError('登入失敗，請稍後再試');
-    } finally {
-      setLoading(false);
+    if (login(password)) {
+      router.push('/admin');
+    } else {
+      setError('密碼錯誤');
     }
+    setLoading(false);
   };
 
   return (
@@ -61,22 +47,6 @@ export default function AdminLoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-slate-600 mb-1.5">
-                使用者名稱
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                required
-                placeholder="輸入使用者名稱"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-100 outline-none transition-all bg-white text-slate-700 placeholder-slate-400"
-                data-testid="username-input"
-              />
-            </div>
-
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-slate-600 mb-1.5">
                 密碼

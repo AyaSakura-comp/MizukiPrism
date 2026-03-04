@@ -21,6 +21,16 @@ import {
 } from 'lucide-react';
 import { Song, Stream } from '@/lib/types';
 import { secondsToTimestamp } from '@/lib/utils';
+import { loadSongs, loadStreams } from '@/lib/supabase-data';
+import {
+  isAuthenticated,
+  logout,
+  createStream,
+  createPerformance,
+  updatePerformance,
+  updateSong,
+  deletePerformance,
+} from '@/lib/supabase-admin';
 
 // StreamForm component
 function StreamForm({
@@ -42,22 +52,10 @@ function StreamForm({
     setLoading(true);
 
     try {
-      const res = await fetch('/api/streams/manage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, date, youtubeUrl }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || '建立失敗');
-        return;
-      }
-
-      onSuccess(data);
-    } catch {
-      setError('建立失敗，請稍後再試');
+      const stream = await createStream(title, date, youtubeUrl);
+      onSuccess(stream);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '建立失敗');
     } finally {
       setLoading(false);
     }
@@ -173,30 +171,18 @@ function VersionForm({
     setLoading(true);
 
     try {
-      const res = await fetch('/api/versions/manage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          songTitle,
-          originalArtist,
-          songTags: songTags.split(',').map(t => t.trim()).filter(Boolean),
-          streamId,
-          startTimestamp,
-          endTimestamp: endTimestamp || undefined,
-          note,
-        }),
+      await createPerformance({
+        songTitle,
+        originalArtist,
+        songTags: songTags.split(',').map(t => t.trim()).filter(Boolean),
+        streamId,
+        startTimestamp,
+        endTimestamp: endTimestamp || undefined,
+        note,
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || '建立失敗');
-        return;
-      }
-
       onSuccess();
-    } catch {
-      setError('建立失敗，請稍後再試');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '建立失敗');
     } finally {
       setLoading(false);
     }
@@ -357,27 +343,10 @@ function EditVersionForm({
     setLoading(true);
 
     try {
-      const res = await fetch('/api/versions/manage', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: performanceId,
-          startTimestamp,
-          endTimestamp: endTimestamp || undefined,
-          note,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || '更新失敗');
-        return;
-      }
-
+      await updatePerformance(performanceId, startTimestamp, endTimestamp || undefined, note);
       onSuccess();
-    } catch {
-      setError('更新失敗，請稍後再試');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '更新失敗');
     } finally {
       setLoading(false);
     }
@@ -477,27 +446,10 @@ function EditSongForm({
     setLoading(true);
 
     try {
-      const res = await fetch('/api/songs/manage', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: song.id,
-          title,
-          originalArtist,
-          tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || '更新失敗');
-        return;
-      }
-
+      await updateSong(song.id, title, originalArtist, tags.split(',').map(t => t.trim()).filter(Boolean));
       onSuccess();
-    } catch {
-      setError('更新失敗，請稍後再試');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '更新失敗');
     } finally {
       setLoading(false);
     }
@@ -642,16 +594,12 @@ export default function AdminPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [songsRes, streamsRes] = await Promise.all([
-        fetch('/api/songs'),
-        fetch('/api/streams'),
-      ]);
       const [songsData, streamsData] = await Promise.all([
-        songsRes.json(),
-        streamsRes.json(),
+        loadSongs(),
+        loadStreams(),
       ]);
       setSongs(songsData);
-      setStreams(streamsData);
+      setStreams(streamsData as Stream[]);
     } catch {
       // handle silently
     } finally {
@@ -660,24 +608,17 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/auth/check', { method: 'POST' })
-      .then(res => {
-        if (!res.ok) {
-          router.replace('/admin/login');
-        } else {
-          setAuthenticated(true);
-          fetchData();
-        }
-      })
-      .catch(() => {
-        router.replace('/admin/login');
-      });
+    if (!isAuthenticated()) {
+      router.replace('/admin/login');
+    } else {
+      setAuthenticated(true);
+      fetchData();
+    }
   }, [fetchData, router]);
 
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
+  const handleLogout = () => {
+    logout();
     router.push('/admin/login');
-    router.refresh();
   };
 
   const handleStreamCreated = (stream: Stream) => {
@@ -703,15 +644,8 @@ export default function AdminPage() {
 
   const handleDeleteVersion = async (performanceId: string) => {
     try {
-      const res = await fetch('/api/versions/manage', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: performanceId }),
-      });
-
-      if (res.ok) {
-        await fetchData();
-      }
+      await deletePerformance(performanceId);
+      await fetchData();
     } finally {
       setDeleteVersionId(null);
     }

@@ -16,6 +16,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Song, SongMetadata, SongLyrics } from '@/lib/types';
+import { loadSongs, loadMetadata, loadLyrics } from '@/lib/supabase-data';
+import { isAuthenticated } from '@/lib/supabase-admin';
 
 interface MetadataStatus {
   songId: string;
@@ -35,21 +37,14 @@ export default function MetadataPage() {
   const [metadata, setMetadata] = useState<SongMetadata[]>([]);
   const [lyrics, setLyrics] = useState<SongLyrics[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isFetchingAll, setIsFetchingAll] = useState(false);
-  const [fetchingIds, setFetchingIds] = useState<Set<string>>(new Set());
   const [filter, setActiveFilter] = useState<'all' | 'missing-art' | 'missing-lyrics'>('all');
 
   const fetchData = useCallback(async () => {
     try {
-      const [songsRes, metaRes, lyricsRes] = await Promise.all([
-        fetch('/api/songs'),
-        fetch('/api/metadata'),
-        fetch('/api/lyrics'),
-      ]);
-      const [songsData, metaData, lyricsData] = await Promise.all([
-        songsRes.json(),
-        metaRes.json(),
-        lyricsRes.json(),
+      const [songsData, { songMetadata: metaData }, lyricsData] = await Promise.all([
+        loadSongs(),
+        loadMetadata(),
+        loadLyrics(),
       ]);
       setSongs(songsData);
       setMetadata(metaData);
@@ -62,14 +57,12 @@ export default function MetadataPage() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/auth/check', { method: 'POST' })
-      .then((res) => {
-        if (!res.ok) router.replace('/admin/login');
-        else {
-          setAuthenticated(true);
-          fetchData();
-        }
-      });
+    if (!isAuthenticated()) {
+      router.replace('/admin/login');
+    } else {
+      setAuthenticated(true);
+      fetchData();
+    }
   }, [router, fetchData]);
 
   const songStatuses: MetadataStatus[] = songs.map(s => {
@@ -96,55 +89,8 @@ export default function MetadataPage() {
     return true;
   });
 
-  async function fetchMetadata(status: MetadataStatus) {
-    if (fetchingIds.has(status.songId)) return;
-    
-    setFetchingIds(prev => new Set([...prev, status.songId]));
-    try {
-      const res = await fetch('/api/admin/metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          songId: status.songId,
-          artist: status.artist,
-          title: status.songTitle,
-        }),
-      });
-      if (res.ok) {
-        // Just refresh the relevant data
-        const [metaRes, lyricsRes] = await Promise.all([
-          fetch('/api/metadata'),
-          fetch('/api/lyrics'),
-        ]);
-        const [metaData, lyricsData] = await Promise.all([
-          metaRes.json(),
-          lyricsRes.json(),
-        ]);
-        setMetadata(metaData);
-        setLyrics(lyricsData);
-      }
-    } finally {
-      setFetchingIds(prev => {
-        const next = new Set(prev);
-        next.delete(status.songId);
-        return next;
-      });
-    }
-  }
-
-  async function fetchAllMissing() {
-    const missing = songStatuses.filter(s => !s.hasArt || !s.hasLyrics);
-    if (missing.length === 0) return;
-    
-    setIsFetchingAll(true);
-    // Fetch in batches of 3 to avoid rate limits
-    for (let i = 0; i < missing.length; i++) {
-      await fetchMetadata(missing[i]);
-      // Small delay between requests
-      if (i % 3 === 0) await new Promise(r => setTimeout(res => r(res), 1000));
-    }
-    setIsFetchingAll(false);
-  }
+  // Metadata fetching is done via MizukiLens CLI:
+  // cd tools/mizukilens && mizukilens metadata fetch --missing
 
   if (!authenticated || loading) {
     return (
@@ -166,14 +112,10 @@ export default function MetadataPage() {
             <h1 className="text-2xl font-bold text-slate-800">中繼資料管理</h1>
           </div>
           
-          <button
-            onClick={fetchAllMissing}
-            disabled={isFetchingAll}
-            className="flex items-center gap-2 px-4 py-2 bg-pink-500 text-white rounded-xl hover:bg-pink-600 disabled:opacity-50 transition-all shadow-md"
-          >
-            {isFetchingAll ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-            擷取所有缺失資料
-          </button>
+          <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-sm">
+            <FileText size={14} />
+            執行 <code className="font-mono bg-slate-200 px-1 rounded">mizukilens metadata fetch --missing</code> 更新
+          </div>
         </div>
 
         {/* Filters and Search */}
@@ -268,24 +210,7 @@ export default function MetadataPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => fetchMetadata(status)}
-                        disabled={fetchingIds.has(status.songId)}
-                        className={`p-2 rounded-lg transition-colors ${
-                          fetchingIds.has(status.songId)
-                            ? 'text-slate-300'
-                            : 'text-slate-400 hover:text-pink-500 hover:bg-pink-50'
-                        }`}
-                        title="重新擷取"
-                      >
-                        {fetchingIds.has(status.songId) ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                          <RefreshCw size={18} />
-                        )}
-                      </button>
-                    </td>
+                    <td className="px-6 py-4 text-xs text-slate-300">CLI</td>
                   </tr>
                 ))
               )}

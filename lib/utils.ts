@@ -1,3 +1,11 @@
+export function extractVideoId(youtubeUrl: string): string | null {
+  const watchMatch = youtubeUrl.match(/youtube\.com\/watch\?(?:.*&)?v=([a-zA-Z0-9_-]+)/);
+  if (watchMatch) return watchMatch[1];
+  const shortMatch = youtubeUrl.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+  if (shortMatch) return shortMatch[1];
+  return null;
+}
+
 export function validateYoutubeUrl(url: string): boolean {
   return /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[a-zA-Z0-9_-]+/.test(url);
 }
