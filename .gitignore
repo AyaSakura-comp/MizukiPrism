@@ -44,3 +44,4 @@ next-env.d.ts
 
 # Admin staging
 data/.staging.json
+lib/config.ts
