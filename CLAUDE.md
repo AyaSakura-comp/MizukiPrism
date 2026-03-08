@@ -64,7 +64,7 @@ lib/
 └── admin/
     ├── extraction.ts         parseTextToSongs, findCandidateComment, parseSongLine
     ├── youtube.ts            Innertube scraping (server-side only — fetchVideoPage, fetchComments, fetchChannelProfile)
-    ├── metadata.ts           Deezer + LRCLIB API clients
+    ├── metadata.ts           iTunes + LRCLIB API clients
     ├── data-writer.ts        File I/O for JSON data files (legacy, pre-Supabase)
     └── git.ts                Git service (legacy, pre-Supabase)
 data/                         Legacy static JSON files (kept but no longer used by frontend)
