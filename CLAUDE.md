@@ -64,7 +64,7 @@ lib/
 └── admin/
     ├── extraction.ts         parseTextToSongs, findCandidateComment, parseSongLine
     ├── youtube.ts            Innertube scraping (server-side only — fetchVideoPage, fetchComments, fetchChannelProfile)
-    ├── metadata.ts           Deezer + LRCLIB API clients
+    ├── metadata.ts           iTunes + LRCLIB API clients
     ├── data-writer.ts        File I/O for JSON data files (legacy, pre-Supabase)
     └── git.ts                Git service (legacy, pre-Supabase)
 data/                         Legacy static JSON files (kept but no longer used by frontend)
@@ -126,7 +126,9 @@ YouTube Comments API — fetches top comments
 findCandidateComment + parseTextToSongs (lib/admin/extraction.ts)
     — strips HTML (<br> → \n, removes <a> tags) before parsing
     ↓
-iTunes API (supabase-admin.ts fetchItunesDuration) — enriches missing end timestamps
+iTunes API primary → MusicBrainz fallback (supabase-admin.ts) — enriches missing end timestamps
+    ↓
+Discover review table — shows provenance badges (iTunes/MusicBrainz/comment/none)
     ↓
 importStreamWithSongs (lib/supabase-admin.ts) — upserts stream + songs + performances
     ↓
@@ -162,8 +164,25 @@ Two separate YouTube clients exist:
 ### Streamer Filter
 
 - Filter buttons on fan page are derived from `streamersWithSongs` — only streamers that have at least one performance in the loaded song catalog are shown.
+- Filter only renders when `streamersWithSongs.length > 1` — a single streamer shows no filter buttons.
 - `streamChannelMap` (streamId → channelId) is built from the live `streams` Supabase state, not from static JSON.
 - Filter is multi-select (clicking multiple streamers shows union of their songs).
+- The fan page banner/header uses `streamers[0]` (first streamer from DB) — insertion order matters.
+
+### Duration Detection in Discover
+
+The discover page enriches songs missing end timestamps using a two-tier API fallback:
+
+1. **iTunes API** (primary) — `fetchItunesDuration()` in `lib/supabase-admin.ts`. Searches `itunes.apple.com/search` with `country=JP`. 3s rate limit. Best coverage for Japanese songs.
+2. **MusicBrainz API** (fallback) — `fetchMusicBrainzDuration()` in `lib/supabase-admin.ts`. 1.1s rate limit. Used when iTunes misses.
+
+Each song in the review table shows a **provenance badge** indicating the duration source:
+- Blue `iTunes` — duration from iTunes API
+- Violet `MusicBrainz` — fallback from MusicBrainz
+- Green `comment` — end timestamp was already in the YouTube comment
+- Gray `none` — no duration found
+
+The `durationSource` field is UI-only (not persisted to Supabase). Badge colors use `violet` not `purple` because Tailwind's purple palette is overridden by custom CSS variables in `tailwind.config.ts`.
 
 ### YouTube Comment Parsing
 
@@ -258,7 +277,13 @@ YouTube Data API v3 `textDisplay` field returns HTML, not plain text. Line break
 ### 8. `basePath` breaks local routing if set unconditionally
 If `basePath: "/MizukiPrism"` is set without the `isProd` guard, all local dev routes break (e.g., `localhost:3000` becomes `localhost:3000/MizukiPrism`). Always gate on `process.env.NODE_ENV === 'production'`.
 
-### 9. Admin auth is not secure
+### 9. Tailwind custom colors override default palette
+`tailwind.config.ts` defines custom `purple` as `var(--accent-purple)`, which replaces the entire default purple scale. `bg-purple-200`, `text-purple-800` etc. won't work — use `violet` instead for standard Tailwind purple shades.
+
+### 10. `findCandidateComment` can pick chat logs instead of song lists
+Some YouTube streams have timestamped chat log comments (e.g., 129 lines of viewer messages). `findCandidateComment` treats these as song lists because they contain timestamps. This causes extremely long duration enrichment times (129 × 3s = ~6.5 min). The parser needs better heuristics to distinguish song lists from chat logs.
+
+### 11. Admin auth is not secure
 The admin password (`mizuki-admin`) is hardcoded in `lib/supabase-admin.ts` and visible in the JS bundle. Anyone can read it from the built JS. This is acceptable because the Supabase anon key allows the same writes anyway (RLS disabled). Do not store genuinely sensitive data or use this auth pattern for anything beyond casual protection.
 
 ## Testing & Verification
@@ -272,6 +297,7 @@ Run `npm run test:unit` for Vitest tests in `lib/admin/__tests__/`. These cover 
 Playwright tests live in `tests/*.spec.ts`. Key test files:
 - `tests/e2e-verify.spec.ts` — 3 core flows: fan page playback, admin login, discover import
 - `tests/discover-kirali-manual.spec.ts` — import `TGuSYMpwepw` via discover UI
+- `tests/discover-itunes-duration.spec.ts` — iTunes duration badges: manual paste (none badges) + YouTube URL (iTunes/MusicBrainz badges)
 - `tests/core-001.spec.ts` — core fan-facing page assertions
 
 ### E2E Video Recording & Verification Flow
