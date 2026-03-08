@@ -115,6 +115,43 @@ export async function fetchMusicBrainzDuration(artist: string, title: string): P
   }
 }
 
+// ---- iTunes Duration (browser-safe, CORS-friendly, no API key) ----
+
+let lastItunesCallTime = 0;
+const ITUNES_RATE_LIMIT_MS = 3000;
+
+export async function fetchItunesDuration(artist: string, title: string): Promise<number | null> {
+  try {
+    // Rate limit: 3s between calls
+    const elapsed = Date.now() - lastItunesCallTime;
+    if (elapsed < ITUNES_RATE_LIMIT_MS) {
+      await new Promise(r => setTimeout(r, ITUNES_RATE_LIMIT_MS - elapsed));
+    }
+    lastItunesCallTime = Date.now();
+
+    const params = new URLSearchParams({
+      term: `${artist} ${title}`,
+      media: 'music',
+      entity: 'song',
+      country: 'JP',
+      limit: '5',
+    });
+    const res = await fetch(`https://itunes.apple.com/search?${params}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    for (const r of data.results ?? []) {
+      if (r.trackTimeMillis && r.trackTimeMillis > 0) {
+        return Math.round(r.trackTimeMillis / 1000);
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // ---- Import stream + songs (bulk) ----
 
 export async function importStreamWithSongs(params: {
