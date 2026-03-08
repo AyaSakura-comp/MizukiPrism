@@ -78,9 +78,19 @@ export default function Home() {
   const [streamers, setStreamers] = useState<{ channelId: string; handle: string; displayName: string; avatarUrl: string; description: string; social_links?: Record<string, string> }[]>([]);
   // empty array = "All"
 
-  // Primary streamer profile for the banner/header (first streamer in DB)
+  const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
+
+  useEffect(() => {
+    if (streamers.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentHeroIndex(prev => (prev + 1) % streamers.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [streamers.length]);
+
+  // Primary streamer profile for the banner/header
   const streamerData = useMemo(() => {
-    const s = streamers[0];
+    const s = streamers[currentHeroIndex] || streamers[0];
     return {
       channelId: s?.channelId ?? '',
       name: s?.displayName ?? '',
@@ -90,7 +100,7 @@ export default function Home() {
       subTitle: 'Official Song Archive',
       socialLinks: s?.social_links ?? {},
     };
-  }, [streamers]);
+  }, [streamers, currentHeroIndex]);
   // Map from songId to albumArtUrl — populated from /api/metadata
   const albumArtMapRef = useRef<Map<string, string>>(new Map());
 
@@ -577,362 +587,360 @@ export default function Home() {
           {/* Home tab content wrapper: always visible on desktop, only on home tab on mobile */}
           <div className={mobileTab !== 'home' ? 'hidden lg:block' : ''}>
 
-          {/* Mobile Hero Section (§3.4.9.3) — vertical layout, mobile only */}
-          <header
+          {/* Mobile Hero Section Carousel (§3.4.9.3) — vertical layout, mobile only */}
+          <div
             data-testid="mobile-hero"
-            className="lg:hidden flex flex-col items-center flex-shrink-0"
-            style={{
-              padding: '16px 24px 24px 24px',
-              borderBottom: '1px solid var(--border-glass)',
-              gap: '12px',
-            }}
+            className="lg:hidden relative w-full overflow-hidden flex-shrink-0 pb-6"
+            style={{ borderBottom: '1px solid var(--border-glass)' }}
           >
-            {/* Avatar: 160×160 circle with gradient border and outer shadow */}
             <div
-              className="flex-shrink-0"
-              style={{
-                width: '160px',
-                height: '160px',
-                borderRadius: '80px',
-                padding: '3px',
-                background: 'linear-gradient(135deg, var(--accent-pink-light), var(--accent-blue-light))',
-                boxShadow: '0 8px 32px rgba(244, 114, 182, 0.25)',
-              }}
+              className="flex transition-transform duration-700 ease-in-out"
+              style={{ transform: `translateX(-${currentHeroIndex * 100}%)` }}
             >
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  borderRadius: '80px',
-                  overflow: 'hidden',
-                }}
-              >
-                <img
-                  src={streamerData.avatarUrl || undefined}
-                  alt={streamerData.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={(e) => {
-                    const target = e.currentTarget as HTMLImageElement;
-                    target.style.display = 'none';
-                    const parent = target.parentElement;
-                    if (parent) {
-                      parent.style.background = 'linear-gradient(135deg, var(--accent-pink-light), var(--accent-blue-light))';
-                    }
+              {streamers.map((s, idx) => (
+                <header
+                  key={s.channelId || idx}
+                  className="w-full flex-shrink-0 flex flex-col items-center"
+                  style={{
+                    padding: '16px 24px 0 24px',
+                    gap: '12px',
                   }}
-                />
+                >
+                  {/* Avatar: 160×160 circle with gradient border and outer shadow */}
+                  <div
+                    className="flex-shrink-0"
+                    style={{
+                      width: '160px',
+                      height: '160px',
+                      borderRadius: '80px',
+                      padding: '3px',
+                      background: 'linear-gradient(135deg, var(--accent-pink-light), var(--accent-blue-light))',
+                      boxShadow: '0 8px 32px rgba(244, 114, 182, 0.25)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '80px',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <img
+                        src={s.avatarUrl || undefined}
+                        alt={s.displayName}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          const target = e.currentTarget as HTMLImageElement;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent) {
+                            parent.style.background = 'linear-gradient(135deg, var(--accent-pink-light), var(--accent-blue-light))';
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Verified Badge: sparkles icon + "Verified Artist" */}
+                  <div
+                    className="flex items-center gap-1.5"
+                    style={{
+                      background: '#FDF2F8',
+                      borderRadius: 'var(--radius-pill)',
+                      padding: '4px 12px 4px 8px',
+                      color: 'var(--accent-pink)',
+                      fontSize: 'var(--font-size-xs)',
+                      fontWeight: 700,
+                      letterSpacing: '0.05em',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    <Sparkles style={{ width: '12px', height: '12px' }} />
+                    Verified Artist
+                  </div>
+
+                  {/* Streamer Name: fontSize 36, fontWeight 900, letterSpacing -0.5 */}
+                  <h1
+                    style={{
+                      fontSize: '36px',
+                      fontWeight: 900,
+                      letterSpacing: '-0.5px',
+                      color: 'var(--text-primary)',
+                      lineHeight: 1.1,
+                      textAlign: 'center',
+                      margin: 0,
+                    }}
+                  >
+                    {s.displayName}
+                  </h1>
+
+                  {/* Description: "Virtual Singer & Streamer · {songCount} Songs", fontSize 13, centered */}
+                  <p
+                    style={{
+                      fontSize: '13px',
+                      color: 'var(--text-secondary)',
+                      textAlign: 'center',
+                      lineHeight: 1.5,
+                      margin: 0,
+                    }}
+                  >
+                    Virtual Singer &amp; Streamer
+                    {' '}
+                    <span style={{ color: 'var(--text-tertiary)' }}>·</span>
+                    {' '}
+                    <span style={{ fontWeight: 600 }}>{flattenedSongs.filter(song => streamChannelMap.get(song.streamId || '') === s.channelId).length} Songs</span>
+                  </p>
+
+                  {/* Stats row: followerCount Followers · Rank #rank (rank in accent-pink), centered */}
+                  <p
+                    style={{
+                      fontSize: '13px',
+                      color: 'var(--text-secondary)',
+                      textAlign: 'center',
+                      lineHeight: 1.5,
+                      margin: 0,
+                    }}
+                  >
+                    21.8萬位訂閱者
+                    {' '}
+                    <span style={{ color: 'var(--text-tertiary)' }}>·</span>
+                    {' '}
+                    Rank{' '}
+                    <span style={{ color: 'var(--accent-pink)', fontWeight: 700 }}>#{idx + 1}</span>
+                  </p>
+                </header>
+              ))}
+            </div>
+            {streamers.length > 1 && (
+              <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10">
+                {streamers.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentHeroIndex(i)}
+                    className={`h-1.5 rounded-full transition-all ${i === currentHeroIndex ? 'bg-pink-500 w-3' : 'bg-pink-300/60 w-1.5 hover:bg-pink-400'}`}
+                    aria-label={`Go to slide ${i + 1}`}
+                  />
+                ))}
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* Verified Badge: sparkles icon + "Verified Artist" */}
-            <div
-              className="flex items-center gap-1.5"
-              style={{
-                background: '#FDF2F8',
-                borderRadius: 'var(--radius-pill)',
-                padding: '4px 12px 4px 8px',
-                color: 'var(--accent-pink)',
-                fontSize: 'var(--font-size-xs)',
-                fontWeight: 700,
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase',
-              }}
-            >
-              <Sparkles style={{ width: '12px', height: '12px' }} />
-              Verified Artist
-            </div>
-
-            {/* Streamer Name: fontSize 36, fontWeight 900, letterSpacing -0.5 */}
-            <h1
-              style={{
-                fontSize: '36px',
-                fontWeight: 900,
-                letterSpacing: '-0.5px',
-                color: 'var(--text-primary)',
-                lineHeight: 1.1,
-                textAlign: 'center',
-                margin: 0,
-              }}
-            >
-              {streamerData.name}
-            </h1>
-
-            {/* Description: "Virtual Singer & Streamer · {songCount} Songs", fontSize 13, centered */}
-            <p
-              style={{
-                fontSize: '13px',
-                color: 'var(--text-secondary)',
-                textAlign: 'center',
-                lineHeight: 1.5,
-                margin: 0,
-              }}
-            >
-              Virtual Singer &amp; Streamer
-              {' '}
-              <span style={{ color: 'var(--text-tertiary)' }}>·</span>
-              {' '}
-              <span style={{ fontWeight: 600 }}>{songs.length} Songs</span>
-            </p>
-
-            {/* Stats row: followerCount Followers · Rank #rank (rank in accent-pink), centered */}
-            <p
-              style={{
-                fontSize: '13px',
-                color: 'var(--text-secondary)',
-                textAlign: 'center',
-                lineHeight: 1.5,
-                margin: 0,
-              }}
-            >
-              21.8萬位訂閱者
-              {' '}
-              <span style={{ color: 'var(--text-tertiary)' }}>·</span>
-              {' '}
-              Rank{' '}
-              <span style={{ color: 'var(--accent-pink)', fontWeight: 700 }}>#1</span>
-            </p>
-          </header>
-
-          {/* Hero Section - Streamer Profile (~280px height) — desktop only */}
-          <header
-            className="relative hidden lg:flex items-center gap-8 overflow-hidden flex-shrink-0"
+          {/* Hero Section Carousel - Streamer Profile (~280px height) — desktop only */}
+          <div
+            className="relative hidden lg:block overflow-hidden flex-shrink-0 group"
             style={{
               minHeight: '280px',
-              padding: '40px 40px 0 40px',
               borderBottom: '1px solid var(--border-glass)',
             }}
           >
-            {/* Left: Avatar */}
             <div
-              className="flex-shrink-0 overflow-hidden"
-              style={{
-                width: '180px',
-                height: '180px',
-                borderRadius: 'var(--radius-xl)',
-                border: '1px solid var(--border-glass)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-                alignSelf: 'flex-end',
-                marginBottom: '40px',
-              }}
+              className="flex transition-transform duration-700 ease-in-out h-full"
+              style={{ transform: `translateX(-${currentHeroIndex * 100}%)` }}
             >
-              <img
-                src={streamerData.avatarUrl || undefined}
-                alt={streamerData.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  const target = e.currentTarget as HTMLImageElement;
-                  target.style.display = 'none';
-                  const parent = target.parentElement;
-                  if (parent) {
-                    parent.style.background = 'linear-gradient(135deg, var(--accent-pink-light), var(--accent-blue-light))';
-                    parent.style.display = 'flex';
-                    parent.style.alignItems = 'center';
-                    parent.style.justifyContent = 'center';
-                  }
-                }}
-              />
-            </div>
-
-            {/* Right: Info Stack */}
-            <div
-              className="flex flex-col justify-end flex-1 min-w-0"
-              style={{
-                paddingBottom: '40px',
-                gap: '8px',
-              }}
-            >
-              {/* VerifiedBadge Component */}
-              <div
-                className="flex items-center gap-1.5 w-fit"
-                style={{
-                  background: 'var(--bg-accent-blue-muted)',
-                  color: 'var(--accent-blue)',
-                  borderRadius: 'var(--radius-pill)',
-                  padding: '4px 12px 4px 8px',
-                  fontSize: 'var(--font-size-xs)',
-                  fontWeight: 700,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M6 0L7.545 4.455L12 6L7.545 7.545L6 12L4.455 7.545L0 6L4.455 4.455L6 0Z" fill="currentColor" />
-                </svg>
-                認證藝人
-              </div>
-
-              {/* Streamer Name */}
-              <h1
-                className="tracking-tight leading-none"
-                style={{
-                  fontSize: 'var(--font-size-3xl)',
-                  fontWeight: 900,
-                  color: 'var(--text-primary)',
-                  lineHeight: 1.1,
-                }}
-              >
-                {streamerData.name}
-              </h1>
-
-              {/* Description / Stats Text */}
-              <p
-                style={{
-                  color: 'var(--text-secondary)',
-                  fontSize: 'var(--font-size-base)',
-                  maxWidth: '480px',
-                  lineHeight: 1.5,
-                  margin: '2px 0',
-                }}
-              >
-                {streamerData.description}
-                {' '}
-                <span style={{ color: 'var(--text-tertiary)' }}>·</span>
-                {' '}
-                <span style={{ fontWeight: 600 }}>{flattenedSongs.length} 首歌曲</span>
-              </p>
-
-              {/* Statistics Row: Followers + Rank */}
-              <div
-                className="flex items-center gap-6"
-                style={{ fontSize: 'var(--font-size-base)', marginTop: '4px' }}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span
-                    style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 'var(--font-size-xl)' }}
+              {streamers.map((s, idx) => (
+                <header
+                  key={s.channelId || idx}
+                  className="w-full flex-shrink-0 flex items-center gap-8 relative"
+                  style={{
+                    padding: '40px 40px 0 40px',
+                    minHeight: '280px',
+                  }}
+                >
+                  {/* Left: Avatar */}
+                  <div
+                    className="flex-shrink-0 overflow-hidden"
+                    style={{
+                      width: '180px',
+                      height: '180px',
+                      borderRadius: 'var(--radius-xl)',
+                      border: '1px solid var(--border-glass)',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                      alignSelf: 'flex-end',
+                      marginBottom: '40px',
+                    }}
                   >
-                    21.8萬
-                  </span>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-                    訂閱者
-                  </span>
-                </div>
-                <div
-                  style={{
-                    width: '1px',
-                    height: '16px',
-                    background: 'var(--border-default)',
-                  }}
-                />
-                <div className="flex items-center gap-1.5">
-                  <span
-                    style={{ fontWeight: 700, color: 'var(--accent-pink)', fontSize: 'var(--font-size-xl)' }}
-                  >
-                    #1
-                  </span>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-                    排名
-                  </span>
-                </div>
-              </div>
+                    <img
+                      src={s.avatarUrl || undefined}
+                      alt={s.displayName}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.currentTarget as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.style.background = 'linear-gradient(135deg, var(--accent-pink-light), var(--accent-blue-light))';
+                          parent.style.display = 'flex';
+                          parent.style.alignItems = 'center';
+                          parent.style.justifyContent = 'center';
+                        }
+                      }}
+                    />
+                  </div>
 
-              {/* Social Links Row */}
-              <div className="flex items-center gap-2" style={{ marginTop: '4px' }}>
-                {/* YouTube SocialButton */}
-                <a
-                  href={streamerData.socialLinks.youtube}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 transition-all hover:opacity-80"
-                  style={{
-                    background: 'var(--bg-surface-glass)',
-                    border: '1px solid var(--border-glass)',
-                    borderRadius: 'var(--radius-pill)',
-                    padding: '6px 14px 6px 10px',
-                    color: 'var(--text-secondary)',
-                    fontSize: 'var(--font-size-sm)',
-                    fontWeight: 600,
-                    backdropFilter: 'blur(8px)',
-                    WebkitBackdropFilter: 'blur(8px)',
-                  }}
-                >
-                  <Youtube className="w-4 h-4" style={{ color: '#FF0000' }} />
-                  YouTube
-                </a>
-                {/* Twitter SocialButton */}
-                <a
-                  href={streamerData.socialLinks.twitter}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 transition-all hover:opacity-80"
-                  style={{
-                    background: 'var(--bg-surface-glass)',
-                    border: '1px solid var(--border-glass)',
-                    borderRadius: 'var(--radius-pill)',
-                    padding: '6px 14px 6px 10px',
-                    color: 'var(--text-secondary)',
-                    fontSize: 'var(--font-size-sm)',
-                    fontWeight: 600,
-                    backdropFilter: 'blur(8px)',
-                    WebkitBackdropFilter: 'blur(8px)',
-                  }}
-                >
-                  <Twitter className="w-4 h-4" style={{ color: '#1DA1F2' }} />
-                  X
-                </a>
-                {/* Facebook SocialButton */}
-                <a
-                  href={streamerData.socialLinks.facebook}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 transition-all hover:opacity-80"
-                  style={{
-                    background: 'var(--bg-surface-glass)',
-                    border: '1px solid var(--border-glass)',
-                    borderRadius: 'var(--radius-pill)',
-                    padding: '6px 14px 6px 10px',
-                    color: 'var(--text-secondary)',
-                    fontSize: 'var(--font-size-sm)',
-                    fontWeight: 600,
-                    backdropFilter: 'blur(8px)',
-                    WebkitBackdropFilter: 'blur(8px)',
-                  }}
-                >
-                  <Facebook className="w-4 h-4" style={{ color: '#1877F2' }} />
-                  Facebook
-                </a>
-                {/* Instagram SocialButton */}
-                <a
-                  href={streamerData.socialLinks.instagram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 transition-all hover:opacity-80"
-                  style={{
-                    background: 'var(--bg-surface-glass)',
-                    border: '1px solid var(--border-glass)',
-                    borderRadius: 'var(--radius-pill)',
-                    padding: '6px 14px 6px 10px',
-                    color: 'var(--text-secondary)',
-                    fontSize: 'var(--font-size-sm)',
-                    fontWeight: 600,
-                    backdropFilter: 'blur(8px)',
-                    WebkitBackdropFilter: 'blur(8px)',
-                  }}
-                >
-                  <Instagram className="w-4 h-4" style={{ color: '#E4405F' }} />
-                  Instagram
-                </a>
-                {/* Twitch SocialButton */}
-                <a
-                  href={streamerData.socialLinks.twitch}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 transition-all hover:opacity-80"
-                  style={{
-                    background: 'var(--bg-surface-glass)',
-                    border: '1px solid var(--border-glass)',
-                    borderRadius: 'var(--radius-pill)',
-                    padding: '6px 14px 6px 10px',
-                    color: 'var(--text-secondary)',
-                    fontSize: 'var(--font-size-sm)',
-                    fontWeight: 600,
-                    backdropFilter: 'blur(8px)',
-                    WebkitBackdropFilter: 'blur(8px)',
-                  }}
-                >
-                  <Twitch className="w-4 h-4" style={{ color: '#9146FF' }} />
-                  Twitch
-                </a>
-              </div>
+                  {/* Right: Info Stack */}
+                  <div
+                    className="flex flex-col justify-end flex-1 min-w-0"
+                    style={{
+                      paddingBottom: '40px',
+                      gap: '8px',
+                    }}
+                  >
+                    {/* VerifiedBadge Component */}
+                    <div
+                      className="flex items-center gap-1.5 w-fit"
+                      style={{
+                        background: 'var(--bg-accent-blue-muted)',
+                        color: 'var(--accent-blue)',
+                        borderRadius: 'var(--radius-pill)',
+                        padding: '4px 12px 4px 8px',
+                        fontSize: 'var(--font-size-xs)',
+                        fontWeight: 700,
+                        letterSpacing: '0.05em',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      <Sparkles style={{ width: '12px', height: '12px' }} />
+                      認證藝人
+                    </div>
+
+                    {/* Streamer Name */}
+                    <h1
+                      className="tracking-tight leading-none"
+                      style={{
+                        fontSize: 'var(--font-size-3xl)',
+                        fontWeight: 900,
+                        color: 'var(--text-primary)',
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      {s.displayName}
+                    </h1>
+
+                    {/* Description / Stats Text */}
+                    <p
+                      style={{
+                        color: 'var(--text-secondary)',
+                        fontSize: 'var(--font-size-base)',
+                        maxWidth: '480px',
+                        lineHeight: 1.5,
+                        margin: '2px 0',
+                      }}
+                    >
+                      {s.description}
+                      {' '}
+                      <span style={{ color: 'var(--text-tertiary)' }}>·</span>
+                      {' '}
+                      <span style={{ fontWeight: 600 }}>{flattenedSongs.filter(song => streamChannelMap.get(song.streamId || '') === s.channelId).length} 首歌曲</span>
+                    </p>
+
+                    {/* Statistics Row: Followers + Rank */}
+                    <div
+                      className="flex items-center gap-6"
+                      style={{ fontSize: 'var(--font-size-base)', marginTop: '4px' }}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 'var(--font-size-xl)' }}
+                        >
+                          21.8萬
+                        </span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+                          訂閱者
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          width: '1px',
+                          height: '16px',
+                          background: 'var(--border-default)',
+                        }}
+                      />
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          style={{ fontWeight: 700, color: 'var(--accent-pink)', fontSize: 'var(--font-size-xl)' }}
+                        >
+                          #{idx + 1}
+                        </span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+                          排名
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Social Links Row */}
+                    <div className="flex items-center gap-2" style={{ marginTop: '4px' }}>
+                      {s.social_links && Object.entries(s.social_links).map(([platform, url]) => {
+                        const colors: Record<string, string> = { youtube: '#FF0000', twitter: '#1DA1F2', facebook: '#1877F2', instagram: '#E4405F', twitch: '#9146FF' };
+                        const platformLower = platform.toLowerCase();
+                        let Icon = ExternalLink;
+                        if (platformLower === 'youtube') Icon = Youtube;
+                        if (platformLower === 'twitter') Icon = Twitter;
+                        if (platformLower === 'facebook') Icon = Facebook;
+                        if (platformLower === 'instagram') Icon = Instagram;
+                        if (platformLower === 'twitch') Icon = Twitch;
+
+                        return (
+                          <a
+                            key={platform}
+                            href={url as string}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 transition-all hover:opacity-80"
+                            style={{
+                              background: 'var(--bg-surface-glass)',
+                              border: '1px solid var(--border-glass)',
+                              borderRadius: 'var(--radius-pill)',
+                              padding: '6px 14px 6px 10px',
+                              color: 'var(--text-secondary)',
+                              fontSize: 'var(--font-size-sm)',
+                              fontWeight: 600,
+                              backdropFilter: 'blur(8px)',
+                              WebkitBackdropFilter: 'blur(8px)',
+                            }}
+                          >
+                            <Icon className="w-4 h-4" style={{ color: colors[platformLower] || 'inherit' }} />
+                            {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </header>
+              ))}
             </div>
+            
+            {/* Desktop Navigation Arrows */}
+            {streamers.length > 1 && (
+              <>
+                <button
+                  onClick={() => setCurrentHeroIndex(prev => (prev === 0 ? streamers.length - 1 : prev - 1))}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/60 backdrop-blur-md border border-white/40 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-white"
+                  aria-label="Previous streamer"
+                >
+                  <ChevronLeft className="w-6 h-6 text-slate-700" />
+                </button>
+                <button
+                  onClick={() => setCurrentHeroIndex(prev => (prev === streamers.length - 1 ? 0 : prev + 1))}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/60 backdrop-blur-md border border-white/40 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-white"
+                  aria-label="Next streamer"
+                >
+                  <ChevronRight className="w-6 h-6 text-slate-700" />
+                </button>
+                
+                {/* Desktop Dots Indicator */}
+                <div className="absolute right-8 bottom-6 flex gap-1.5 z-10">
+                  {streamers.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentHeroIndex(i)}
+                      className={`h-1.5 rounded-full transition-all ${i === currentHeroIndex ? 'bg-pink-500 w-4' : 'bg-pink-300 w-2 hover:bg-pink-400'}`}
+                      aria-label={`Go to slide ${i + 1}`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Bottom gradient overlay: white fading to transparent from bottom up */}
             <div
@@ -942,7 +950,7 @@ export default function Home() {
                 background: 'linear-gradient(to top, rgba(255,255,255,0.6) 0%, transparent 100%)',
               }}
             />
-          </header>
+          </div>
 
           {/* Mobile Action Bar (§3.4.9.4) — horizontal layout, mobile only */}
           <div
