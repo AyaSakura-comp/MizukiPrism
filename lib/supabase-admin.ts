@@ -97,9 +97,9 @@ export async function updateSong(
 
 // ---- MusicBrainz Duration (browser-safe, CORS-friendly, no API key) ----
 
-export async function fetchMusicBrainzDuration(artist: string, title: string): Promise<number | null> {
+export async function fetchMusicBrainzSongInfo(artist: string, title: string): Promise<{ durationSeconds: number, artistName: string } | null> {
   try {
-    const q = encodeURIComponent(`artist:${artist} recording:${title}`);
+    const q = encodeURIComponent(artist ? `artist:${artist} recording:${title}` : `recording:${title}`);
     const res = await fetch(
       `https://musicbrainz.org/ws/2/recording/?query=${q}&fmt=json&limit=5`,
       { headers: { 'User-Agent': 'MizukiPrism/1.0 (github.com/AyaSakura-comp/MizukiPrism)' } }
@@ -107,7 +107,10 @@ export async function fetchMusicBrainzDuration(artist: string, title: string): P
     if (!res.ok) return null;
     const data = await res.json();
     for (const r of data.recordings ?? []) {
-      if (r.length && r.length > 0) return Math.round(r.length / 1000);
+      if (r.length && r.length > 0) {
+        const artistName = r['artist-credit']?.[0]?.name || '';
+        return { durationSeconds: Math.round(r.length / 1000), artistName };
+      }
     }
     return null;
   } catch {
@@ -120,7 +123,7 @@ export async function fetchMusicBrainzDuration(artist: string, title: string): P
 let lastItunesCallTime = 0;
 const ITUNES_RATE_LIMIT_MS = 3000;
 
-export async function fetchItunesDuration(artist: string, title: string): Promise<number | null> {
+export async function fetchItunesSongInfo(artist: string, title: string): Promise<{ durationSeconds: number, artistName: string } | null> {
   try {
     // Rate limit: 3s between calls
     const elapsed = Date.now() - lastItunesCallTime;
@@ -129,8 +132,9 @@ export async function fetchItunesDuration(artist: string, title: string): Promis
     }
     lastItunesCallTime = Date.now();
 
+    const term = artist ? `${artist} ${title}`.trim() : title;
     const params = new URLSearchParams({
-      term: `${artist} ${title}`,
+      term,
       media: 'music',
       entity: 'song',
       country: 'JP',
@@ -143,7 +147,7 @@ export async function fetchItunesDuration(artist: string, title: string): Promis
     const data = await res.json();
     for (const r of data.results ?? []) {
       if (r.trackTimeMillis && r.trackTimeMillis > 0) {
-        return Math.round(r.trackTimeMillis / 1000);
+        return { durationSeconds: Math.round(r.trackTimeMillis / 1000), artistName: r.artistName || '' };
       }
     }
     return null;

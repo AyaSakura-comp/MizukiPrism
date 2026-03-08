@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle } from 'lucide-react';
 import { fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '@/lib/youtube-api';
 import { parseTextToSongs, findCandidateComment, secondsToTimestamp } from '@/lib/admin/extraction';
-import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchItunesDuration, fetchMusicBrainzDuration } from '@/lib/supabase-admin';
+import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchItunesSongInfo, fetchMusicBrainzSongInfo } from '@/lib/supabase-admin';
 import { supabase } from '@/lib/supabase';
 import { extractVideoId } from '@/lib/utils';
 
@@ -33,6 +33,7 @@ interface ExtractedSong {
   endTimestamp: string | null;
   suspicious: boolean;
   durationSource: 'iTunes' | 'MusicBrainz' | 'comment' | 'none';
+  artistSource?: 'iTunes' | 'MusicBrainz' | 'comment' | 'none';
 }
 
 type Step = 'input' | 'extracting' | 'review' | 'importing' | 'done';
@@ -157,26 +158,50 @@ export default function DiscoverPage() {
         parsed = parsed.map(s => ({
           ...s,
           durationSource: s.endSeconds !== null ? 'comment' : 'none',
+          artistSource: s.artist ? 'comment' : 'none',
         })) as any[];
         // Enrich missing end timestamps: iTunes primary, MusicBrainz fallback
         for (let i = 0; i < parsed.length; i++) {
           const s = parsed[i] as any;
-          if (s.durationSource === 'comment') continue;
+          if (s.durationSource === 'comment' && s.artistSource === 'comment') continue;
           // Try iTunes first (3s rate limit built into fetchItunesDuration)
-          const itunesDur = await fetchItunesDuration(s.artist, s.songName);
-          if (itunesDur) {
-            parsed[i] = { ...s, endSeconds: s.startSeconds + itunesDur, endTimestamp: secondsToTimestamp(s.startSeconds + itunesDur), durationSource: 'iTunes' };
-            continue;
+          const itunesInfo = await fetchItunesSongInfo(s.artist, s.songName);
+          if (itunesInfo) {
+            const { durationSeconds, artistName } = itunesInfo;
+            if (s.durationSource === 'none') {
+              s.endSeconds = s.startSeconds + durationSeconds;
+              s.endTimestamp = secondsToTimestamp(s.endSeconds);
+              s.durationSource = 'iTunes';
+            }
+            if (s.artistSource === 'none' && artistName) {
+              s.artist = artistName;
+              s.artistSource = 'iTunes';
+            }
           }
-          // Fallback to MusicBrainz (1.1s rate limit)
-          await new Promise(r => setTimeout(r, 1100));
-          const mbDur = await fetchMusicBrainzDuration(s.artist, s.songName);
-          if (mbDur) {
-            parsed[i] = { ...s, endSeconds: s.startSeconds + mbDur, endTimestamp: secondsToTimestamp(s.startSeconds + mbDur), durationSource: 'MusicBrainz' };
-          } else if (i === parsed.length - 1 && videoDurationSeconds) {
-            // Last song fallback: use video end time
-            parsed[i] = { ...s, endSeconds: videoDurationSeconds, endTimestamp: secondsToTimestamp(videoDurationSeconds), durationSource: 'none' };
+          if (s.durationSource === 'none' || s.artistSource === 'none') {
+            // Fallback to MusicBrainz (1.1s rate limit)
+            await new Promise(r => setTimeout(r, 1100));
+            const mbInfo = await fetchMusicBrainzSongInfo(s.artist, s.songName);
+            if (mbInfo) {
+              const { durationSeconds, artistName } = mbInfo;
+              if (s.durationSource === 'none') {
+                 s.endSeconds = s.startSeconds + durationSeconds;
+                 s.endTimestamp = secondsToTimestamp(s.endSeconds);
+                 s.durationSource = 'MusicBrainz';
+              }
+              if (s.artistSource === 'none' && artistName) {
+                s.artist = artistName;
+                s.artistSource = 'MusicBrainz';
+              }
+            } else if (i === parsed.length - 1 && videoDurationSeconds) {
+              // Last song fallback: use video end time
+              if (s.durationSource === 'none') {
+                s.endSeconds = videoDurationSeconds;
+                s.endTimestamp = secondsToTimestamp(videoDurationSeconds);
+              }
+            }
           }
+          parsed[i] = s;
         }
         setSongs(parsed as any[]);
         setExtractionSource('comment');
@@ -195,7 +220,7 @@ export default function DiscoverPage() {
   // Extract from pasted text
   async function handlePasteExtract() {
     try {
-      const parsed = parseTextToSongs(pastedText).map(s => ({ ...s, durationSource: 'none' as const }));
+      const parsed = parseTextToSongs(pastedText).map(s => ({ ...s, durationSource: 'none' as const, artistSource: s.artist ? 'comment' as const : 'none' as const }));
       setSongs(parsed as any[]);
       setExtractionSource('text');
       setPasteMode(false);
@@ -209,7 +234,7 @@ export default function DiscoverPage() {
     if (!manualTitle || !pastedText) return;
     setError(null);
     try {
-      const parsed = parseTextToSongs(pastedText).map(s => ({ ...s, durationSource: 'none' as const }));
+      const parsed = parseTextToSongs(pastedText).map(s => ({ ...s, durationSource: 'none' as const, artistSource: s.artist ? 'comment' as const : 'none' as const }));
       const manualId = `manual${Date.now()}`;
       setVideoInfo({
         videoId: manualId,
@@ -298,6 +323,20 @@ export default function DiscoverPage() {
       iTunes: 'bg-blue-200 text-blue-800 border border-blue-300',
       MusicBrainz: 'bg-violet-200 text-violet-800 border border-violet-300',
       comment: 'bg-green-200 text-green-800 border border-green-300',
+      none: 'bg-gray-200 text-gray-600 border border-gray-300',
+    };
+    return (
+      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${styles[source] || styles.none}`}>
+        {source}
+      </span>
+    );
+  }
+
+  function artistBadge(source: ExtractedSong['artistSource']) {
+    if (!source || source === 'comment') return null;
+    const styles: Record<string, string> = {
+      iTunes: 'bg-blue-200 text-blue-800 border border-blue-300',
+      MusicBrainz: 'bg-violet-200 text-violet-800 border border-violet-300',
       none: 'bg-gray-200 text-gray-600 border border-gray-300',
     };
     return (
@@ -543,6 +582,7 @@ export default function DiscoverPage() {
                         className="flex-1 px-2 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none"
                       />
                       <span className="text-gray-400">/</span>
+                      {artistBadge(song.artistSource)}
                       <input
                         value={song.artist}
                         onChange={(e) => updateSong(i, 'artist', e.target.value)}

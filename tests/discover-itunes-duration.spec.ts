@@ -18,11 +18,48 @@ async function loginAndNavigateToDiscover(page: any) {
   await page.waitForURL('**/admin/discover', { timeout: 5000 });
 }
 
-test.describe('Discover: iTunes Duration & Provenance Badges', () => {
+test.describe('Discover: iTunes Duration, Artist, & Provenance Badges', () => {
 
-  test('Manual paste shows gray "none" badges on all songs', async ({ page }) => {
+  test('Manual paste missing artist shows iTunes badge for artist fallback', async ({ page }) => {
     await loginAndNavigateToDiscover(page);
 
+    // Toggle manual mode
+    await page.getByTestId('manual-mode-toggle').click();
+    await page.waitForTimeout(300);
+
+    // Fill stream info
+    await page.getByTestId('manual-title-input').fill('Artist Fallback Test');
+    await page.getByTestId('manual-date-input').fill('2026-03-08');
+
+    // Paste 2 songs missing artists
+    await page.getByTestId('paste-text-input').fill(
+      '0:05:00 夜に駆ける\n0:10:30 Pretender'
+    );
+
+    // Extract
+    await page.getByTestId('paste-extract-button').click();
+    
+    // It should now make iTunes requests to fill the duration AND the artist
+    // Wait for either the iTunes or MusicBrainz artist badge to appear for the first song
+    await expect(page.locator('.bg-blue-200.text-blue-800:has-text("iTunes"), .bg-violet-200.text-violet-800:has-text("MusicBrainz")').first()).toBeVisible({ timeout: 15000 });
+
+    // Verify 2 songs appear
+    await expect(page.getByTestId('extracted-song-0')).toBeVisible();
+    await expect(page.getByTestId('extracted-song-1')).toBeVisible();
+
+    // The artists should now be filled (e.g. YOASOBI and Official髭男dism)
+    // Checking that we got *some* artist name populated that isn't empty
+    const artistInput1 = page.locator('[data-testid="extracted-song-0"] input').last();
+    const artistInput2 = page.locator('[data-testid="extracted-song-1"] input').last();
+
+    expect(await artistInput1.inputValue()).not.toBe('');
+    expect(await artistInput2.inputValue()).not.toBe('');
+
+    // Wait 2 secs to capture video of badges
+    await page.waitForTimeout(2000);
+  });
+
+  test('Manual paste shows gray "none" badges on all songs', async ({ page }) => {
     // Toggle manual mode
     await page.getByTestId('manual-mode-toggle').click();
     await page.waitForTimeout(300);
