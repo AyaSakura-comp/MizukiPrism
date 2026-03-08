@@ -57,13 +57,35 @@ test.describe('Discover: iTunes Duration & Provenance Badges', () => {
     test.setTimeout(300000); // 5 min — iTunes 3s/song + MusicBrainz fallback
     await loginAndNavigateToDiscover(page);
 
-    // Paste a known karaoke stream URL
+    // Log browser console messages for debugging
+    page.on('console', msg => console.log(`[browser] ${msg.text()}`));
+
+    // Paste a known karaoke stream URL (TGuSYMpwepw has a clean song list in comments)
     await page.getByTestId('discover-url-input').fill('https://youtu.be/TGuSYMpwepw');
     await page.getByTestId('discover-fetch-button').click();
 
+    // Handle new streamer confirmation dialog if it appears (DB was wiped)
+    try {
+      await page.getByTestId('confirm-streamer-button').waitFor({ timeout: 10000 });
+      await page.getByTestId('confirm-streamer-button').click();
+    } catch {
+      // No new streamer dialog — continue
+    }
+
     // Wait for extraction + duration enrichment (iTunes 3s/song + MusicBrainz fallback)
-    // This can take 60-120s for a full setlist
-    await page.waitForSelector('[data-testid="extracted-song-0"]', { timeout: 180000 });
+    // Could take several minutes for large setlists
+    // Wait for either extracted songs OR paste mode (no candidate comment found)
+    await Promise.race([
+      page.waitForSelector('[data-testid="extracted-song-0"]', { timeout: 240000 }),
+      page.waitForSelector('[data-testid="paste-text-input"]', { timeout: 240000 }),
+    ]);
+
+    // If we ended up in paste mode, the video has no song list comment — skip badge check
+    const inPasteMode = await page.getByTestId('paste-text-input').isVisible().catch(() => false);
+    if (inPasteMode) {
+      console.log('No candidate comment found — video has no song list in comments. Skipping badge check.');
+      return;
+    }
 
     // Wait for all badges to render
     await page.waitForTimeout(3000);

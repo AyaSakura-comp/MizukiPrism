@@ -296,7 +296,7 @@ export default function DiscoverPage() {
   function durationBadge(source: ExtractedSong['durationSource']) {
     const styles: Record<string, string> = {
       iTunes: 'bg-blue-200 text-blue-800 border border-blue-300',
-      MusicBrainz: 'bg-purple-200 text-purple-800 border border-purple-300',
+      MusicBrainz: 'bg-violet-200 text-violet-800 border border-violet-300',
       comment: 'bg-green-200 text-green-800 border border-green-300',
       none: 'bg-gray-200 text-gray-600 border border-gray-300',
     };
