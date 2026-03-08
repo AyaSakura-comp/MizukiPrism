@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle } from 'lucide-react';
 import { fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '@/lib/youtube-api';
 import { parseTextToSongs, findCandidateComment, secondsToTimestamp } from '@/lib/admin/extraction';
-import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchMusicBrainzDuration } from '@/lib/supabase-admin';
+import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchItunesDuration, fetchMusicBrainzDuration } from '@/lib/supabase-admin';
 import { supabase } from '@/lib/supabase';
 import { extractVideoId } from '@/lib/utils';
 
@@ -32,6 +32,7 @@ interface ExtractedSong {
   startTimestamp: string;
   endTimestamp: string | null;
   suspicious: boolean;
+  durationSource: 'iTunes' | 'MusicBrainz' | 'comment' | 'none';
 }
 
 type Step = 'input' | 'extracting' | 'review' | 'importing' | 'done';
@@ -152,18 +153,29 @@ export default function DiscoverPage() {
 
       if (candidate) {
         let parsed = parseTextToSongs(stripHtml(candidate.text));
-        // Enrich end timestamps via MusicBrainz (1 req/sec rate limit)
+        // Tag songs that already have end timestamps from the comment
+        parsed = parsed.map(s => ({
+          ...s,
+          durationSource: s.endSeconds !== null ? 'comment' : 'none',
+        })) as any[];
+        // Enrich missing end timestamps: iTunes primary, MusicBrainz fallback
         for (let i = 0; i < parsed.length; i++) {
-          const s = parsed[i];
-          if (s.endSeconds !== null) continue;
-          // Wait 1.1s between requests to respect MusicBrainz rate limit
-          if (i > 0) await new Promise(r => setTimeout(r, 1100));
-          const dur = await fetchMusicBrainzDuration(s.artist, s.songName);
-          if (dur) {
-            parsed[i] = { ...s, endSeconds: s.startSeconds + dur, endTimestamp: secondsToTimestamp(s.startSeconds + dur) };
+          const s = parsed[i] as any;
+          if (s.durationSource === 'comment') continue;
+          // Try iTunes first (3s rate limit built into fetchItunesDuration)
+          const itunesDur = await fetchItunesDuration(s.artist, s.songName);
+          if (itunesDur) {
+            parsed[i] = { ...s, endSeconds: s.startSeconds + itunesDur, endTimestamp: secondsToTimestamp(s.startSeconds + itunesDur), durationSource: 'iTunes' };
+            continue;
+          }
+          // Fallback to MusicBrainz (1.1s rate limit)
+          await new Promise(r => setTimeout(r, 1100));
+          const mbDur = await fetchMusicBrainzDuration(s.artist, s.songName);
+          if (mbDur) {
+            parsed[i] = { ...s, endSeconds: s.startSeconds + mbDur, endTimestamp: secondsToTimestamp(s.startSeconds + mbDur), durationSource: 'MusicBrainz' };
           } else if (i === parsed.length - 1 && videoDurationSeconds) {
             // Last song fallback: use video end time
-            parsed[i] = { ...s, endSeconds: videoDurationSeconds, endTimestamp: secondsToTimestamp(videoDurationSeconds) };
+            parsed[i] = { ...s, endSeconds: videoDurationSeconds, endTimestamp: secondsToTimestamp(videoDurationSeconds), durationSource: 'none' };
           }
         }
         setSongs(parsed as any[]);
@@ -183,7 +195,7 @@ export default function DiscoverPage() {
   // Extract from pasted text
   async function handlePasteExtract() {
     try {
-      const parsed = parseTextToSongs(pastedText);
+      const parsed = parseTextToSongs(pastedText).map(s => ({ ...s, durationSource: 'none' as const }));
       setSongs(parsed as any[]);
       setExtractionSource('text');
       setPasteMode(false);
@@ -197,7 +209,7 @@ export default function DiscoverPage() {
     if (!manualTitle || !pastedText) return;
     setError(null);
     try {
-      const parsed = parseTextToSongs(pastedText);
+      const parsed = parseTextToSongs(pastedText).map(s => ({ ...s, durationSource: 'none' as const }));
       const manualId = `manual${Date.now()}`;
       setVideoInfo({
         videoId: manualId,
@@ -279,6 +291,20 @@ export default function DiscoverPage() {
 
   function removeSong(index: number) {
     setSongs((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function durationBadge(source: ExtractedSong['durationSource']) {
+    const styles: Record<string, string> = {
+      iTunes: 'bg-blue-100 text-blue-700',
+      MusicBrainz: 'bg-purple-100 text-purple-700',
+      comment: 'bg-green-100 text-green-700',
+      none: 'bg-gray-100 text-gray-500',
+    };
+    return (
+      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${styles[source] || styles.none}`}>
+        {source}
+      </span>
+    );
   }
 
   if (!authenticated) return null;
@@ -510,6 +536,7 @@ export default function DiscoverPage() {
                         placeholder="結束"
                         className="w-16 px-1 py-1 bg-white/50 border border-gray-200 rounded hover:border-gray-300 focus:border-pink-400 focus:outline-none text-sm font-mono text-gray-900 font-bold"
                       />
+                      {durationBadge(song.durationSource)}
                       <input
                         value={song.songName}
                         onChange={(e) => updateSong(i, 'songName', e.target.value)}
