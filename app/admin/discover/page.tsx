@@ -295,10 +295,10 @@ export default function DiscoverPage() {
 
   function durationBadge(source: ExtractedSong['durationSource']) {
     const styles: Record<string, string> = {
-      iTunes: 'bg-blue-100 text-blue-700',
-      MusicBrainz: 'bg-purple-100 text-purple-700',
-      comment: 'bg-green-100 text-green-700',
-      none: 'bg-gray-100 text-gray-500',
+      iTunes: 'bg-blue-200 text-blue-800 border border-blue-300',
+      MusicBrainz: 'bg-purple-200 text-purple-800 border border-purple-300',
+      comment: 'bg-green-200 text-green-800 border border-green-300',
+      none: 'bg-gray-200 text-gray-600 border border-gray-300',
     };
     return (
       <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${styles[source] || styles.none}`}>
