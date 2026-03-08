@@ -64,7 +64,7 @@ lib/
 └── admin/
     ├── extraction.ts         parseTextToSongs, findCandidateComment, parseSongLine
     ├── youtube.ts            Innertube scraping (server-side only — fetchVideoPage, fetchComments, fetchChannelProfile)
-    ├── metadata.ts           iTunes + LRCLIB API clients
+    ├── metadata.ts           Deezer + LRCLIB API clients
     ├── data-writer.ts        File I/O for JSON data files (legacy, pre-Supabase)
     └── git.ts                Git service (legacy, pre-Supabase)
 data/                         Legacy static JSON files (kept but no longer used by frontend)
@@ -126,9 +126,9 @@ YouTube Comments API — fetches top comments
 findCandidateComment + parseTextToSongs (lib/admin/extraction.ts)
     — strips HTML (<br> → \n, removes <a> tags) before parsing
     ↓
-iTunes API primary → MusicBrainz fallback (supabase-admin.ts) — enriches missing end timestamps
+iTunes API primary → MusicBrainz fallback (supabase-admin.ts) — enriches missing end timestamps + artist names
     ↓
-Discover review table — shows provenance badges (iTunes/MusicBrainz/comment/none)
+Discover review table — shows provenance badges for duration and artist (iTunes/MusicBrainz/comment/none)
     ↓
 importStreamWithSongs (lib/supabase-admin.ts) — upserts stream + songs + performances
     ↓
@@ -167,22 +167,20 @@ Two separate YouTube clients exist:
 - Filter only renders when `streamersWithSongs.length > 1` — a single streamer shows no filter buttons.
 - `streamChannelMap` (streamId → channelId) is built from the live `streams` Supabase state, not from static JSON.
 - Filter is multi-select (clicking multiple streamers shows union of their songs).
-- The fan page banner/header uses `streamers[0]` (first streamer from DB) — insertion order matters.
+- The fan page hero section is a **carousel** that auto-rotates every 5s across all streamers (both mobile and desktop). Only activates when `streamers.length > 1`. Uses `currentHeroIndex` state with CSS `translateX` transition.
 
-### Duration Detection in Discover
+### Duration & Artist Enrichment in Discover
 
-The discover page enriches songs missing end timestamps using a two-tier API fallback:
+The discover page enriches songs missing end timestamps **and** artist names using a two-tier API fallback:
 
-1. **iTunes API** (primary) — `fetchItunesDuration()` in `lib/supabase-admin.ts`. Searches `itunes.apple.com/search` with `country=JP`. 3s rate limit. Best coverage for Japanese songs.
-2. **MusicBrainz API** (fallback) — `fetchMusicBrainzDuration()` in `lib/supabase-admin.ts`. 1.1s rate limit. Used when iTunes misses.
+1. **iTunes API** (primary) — `fetchItunesSongInfo()` in `lib/supabase-admin.ts`. Searches `itunes.apple.com/search` with `country=JP`. 3s rate limit. Returns `{ durationSeconds, artistName }`.
+2. **MusicBrainz API** (fallback) — `fetchMusicBrainzSongInfo()` in `lib/supabase-admin.ts`. 1.1s rate limit. Returns `{ durationSeconds, artistName }`. Searches without artist if none provided.
 
-Each song in the review table shows a **provenance badge** indicating the duration source:
-- Blue `iTunes` — duration from iTunes API
-- Violet `MusicBrainz` — fallback from MusicBrainz
-- Green `comment` — end timestamp was already in the YouTube comment
-- Gray `none` — no duration found
+Each song in the review table shows **provenance badges**:
+- **Duration badge** (`durationSource`): Blue `iTunes` / Violet `MusicBrainz` / Green `comment` / Gray `none`
+- **Artist badge** (`artistSource`): Blue `iTunes` / Violet `MusicBrainz` — only shown when artist was enriched from API (not shown for `comment` or `none`)
 
-The `durationSource` field is UI-only (not persisted to Supabase). Badge colors use `violet` not `purple` because Tailwind's purple palette is overridden by custom CSS variables in `tailwind.config.ts`.
+Both `durationSource` and `artistSource` are UI-only (not persisted to Supabase). Badge colors use `violet` not `purple` because Tailwind's purple palette is overridden by custom CSS variables in `tailwind.config.ts`.
 
 ### YouTube Comment Parsing
 
