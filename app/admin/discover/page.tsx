@@ -1,9 +1,9 @@
 // app/admin/discover/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle, Crosshair, Play, Pause } from 'lucide-react';
 import { fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '@/lib/youtube-api';
 import { parseTextToSongs, findCandidateComment, secondsToTimestamp } from '@/lib/admin/extraction';
 import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchItunesSongInfo, fetchMusicBrainzSongInfo } from '@/lib/supabase-admin';
@@ -59,11 +59,148 @@ export default function DiscoverPage() {
   const [showStreamerConfirm, setShowStreamerConfirm] = useState(false);
   const [channelId, setChannelId] = useState<string>('');
 
+  // Preview player state
+  const [activeSongIndex, setActiveSongIndex] = useState<number | null>(null);
+  const [playerCurrentTime, setPlayerCurrentTime] = useState<number>(0);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const previewPlayerRef = useRef<any>(null);
+  const timeUpdateRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const ytPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+  const seekDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Auth check
   useEffect(() => {
     if (!isAuthenticated()) router.replace('/admin/login');
     else setAuthenticated(true);
   }, [router]);
+
+  // Ensure YouTube IFrame API script is loaded
+  useEffect(() => {
+    if ((window as any).YT?.Player) return;
+    if (!document.getElementById('yt-iframe-api')) {
+      const tag = document.createElement('script');
+      tag.id = 'yt-iframe-api';
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
+  }, []);
+
+  // Initialize/destroy preview player on review step
+  useEffect(() => {
+    const isManual = !videoInfo?.videoId || videoInfo.videoId.startsWith('manual');
+    if (step !== 'review' || isManual) {
+      // Cleanup if leaving review
+      if (ytPollRef.current) { clearInterval(ytPollRef.current); ytPollRef.current = null; }
+      if (timeUpdateRef.current) { clearInterval(timeUpdateRef.current); timeUpdateRef.current = null; }
+      if (previewPlayerRef.current) {
+        try { previewPlayerRef.current.destroy(); } catch {}
+        previewPlayerRef.current = null;
+      }
+      return;
+    }
+
+    let destroyed = false;
+
+    function createPlayer() {
+      if (destroyed) return;
+      const container = playerContainerRef.current;
+      if (!container) return;
+      // Create a fresh target element inside the container so React doesn't re-own it
+      container.innerHTML = '';
+      const targetDiv = document.createElement('div');
+      container.appendChild(targetDiv);
+
+      const player = new (window as any).YT.Player(targetDiv, {
+        videoId: videoInfo!.videoId,
+        height: '360',
+        width: '640',
+        playerVars: {
+          controls: 1,
+          rel: 0,
+          autoplay: 0,
+          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+        },
+        events: {
+          onReady: (e: any) => {
+            if (destroyed) return;
+            previewPlayerRef.current = e.target;
+            timeUpdateRef.current = setInterval(() => {
+              if (previewPlayerRef.current) {
+                setPlayerCurrentTime(previewPlayerRef.current.getCurrentTime() ?? 0);
+                const state = previewPlayerRef.current.getPlayerState?.();
+                setIsPreviewPlaying(state === 1);
+              }
+            }, 500);
+          },
+        },
+      });
+      previewPlayerRef.current = player;
+    }
+
+    if ((window as any).YT?.Player) {
+      createPlayer();
+    } else {
+      // Poll until YT API is ready (handles async script load)
+      ytPollRef.current = setInterval(() => {
+        if ((window as any).YT?.Player) {
+          clearInterval(ytPollRef.current!);
+          ytPollRef.current = null;
+          createPlayer();
+        }
+      }, 100);
+    }
+
+    return () => {
+      destroyed = true;
+      if (ytPollRef.current) { clearInterval(ytPollRef.current); ytPollRef.current = null; }
+      if (timeUpdateRef.current) { clearInterval(timeUpdateRef.current); timeUpdateRef.current = null; }
+      if (previewPlayerRef.current) {
+        try { previewPlayerRef.current.destroy(); } catch {}
+        previewPlayerRef.current = null;
+      }
+    };
+  }, [step, videoInfo]);
+
+  // Preview player helpers
+  function seekPreview(seconds: number, songIndex?: number) {
+    if (previewPlayerRef.current) {
+      previewPlayerRef.current.seekTo(seconds, true);
+      previewPlayerRef.current.playVideo();
+    }
+    if (songIndex !== undefined) setActiveSongIndex(songIndex);
+  }
+
+  function setEndTimeFromPlayer(index: number) {
+    const t = Math.round(playerCurrentTime);
+    const ts = secondsToTimestamp(t);
+    updateSong(index, 'endTimestamp', ts);
+    setActiveSongIndex(index);
+  }
+
+  function nudgeTime(delta: number) {
+    if (previewPlayerRef.current) {
+      const cur = previewPlayerRef.current.getCurrentTime() ?? 0;
+      previewPlayerRef.current.seekTo(cur + delta, true);
+    }
+  }
+
+  function togglePreviewPlayPause() {
+    if (!previewPlayerRef.current) return;
+    if (isPreviewPlaying) {
+      previewPlayerRef.current.pauseVideo();
+    } else {
+      previewPlayerRef.current.playVideo();
+    }
+  }
+
+  function formatTime(s: number) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    return `${m}:${String(sec).padStart(2, '0')}`;
+  }
 
   // Step 1: Fetch video info
   async function handleFetchVideo() {
@@ -350,7 +487,7 @@ export default function DiscoverPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-pink-50 via-white to-blue-50 p-4 sm:p-6">
-      <div className="max-w-4xl mx-auto space-y-4">
+      <div className={`${step === 'review' && videoInfo && !videoInfo.videoId.startsWith('manual') ? 'max-w-7xl' : 'max-w-4xl'} mx-auto space-y-4`}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-2">
           <button onClick={() => router.push('/admin')} className="text-gray-500 hover:text-gray-700">
@@ -509,112 +646,233 @@ export default function DiscoverPage() {
         )}
 
         {/* Step 3: Review extracted songs */}
-        {step === 'review' && videoInfo && (
-          <div className="space-y-4">
-            <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6">
-              <h2 className="text-lg font-semibold mb-1">{videoInfo.title}</h2>
-              <p className="text-gray-500 text-sm mb-3">{videoInfo.date}</p>
-              {extractionSource && (
-                <p className="text-sm text-gray-400">
-                  來源：{extractionSource === 'comment' ? `留言 (${commentAuthor || '未知'})` : '手動貼上'}
-                </p>
+        {step === 'review' && videoInfo && (() => {
+          const isManual = videoInfo.videoId.startsWith('manual');
+          return (
+            <div className={`flex gap-6 ${isManual ? '' : 'items-start'}`}>
+              {/* Left column: YouTube preview player */}
+              {!isManual && (
+                <div className="lg:w-[400px] shrink-0 lg:sticky lg:top-6 self-start">
+                  <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-4 space-y-3">
+                    <div className="relative aspect-video bg-black rounded-lg overflow-hidden [&_iframe]:absolute [&_iframe]:inset-0 [&_iframe]:w-full [&_iframe]:h-full">
+                      <div ref={playerContainerRef} className="w-full h-full" />
+                    </div>
+
+                    {/* Current time display */}
+                    <div className="text-center text-sm font-mono text-gray-600 bg-gray-50 rounded-lg py-1.5">
+                      {formatTime(playerCurrentTime)}
+                    </div>
+
+                    {/* Controls */}
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => nudgeTime(-5)}
+                        className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded font-mono"
+                        title="-5s"
+                      >-5s</button>
+                      <button
+                        onClick={() => nudgeTime(-1)}
+                        className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded font-mono"
+                        title="-1s"
+                      >-1s</button>
+                      <button
+                        onClick={togglePreviewPlayPause}
+                        className="px-3 py-1.5 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90"
+                      >
+                        {isPreviewPlaying ? <Pause size={16} /> : <Play size={16} />}
+                      </button>
+                      <button
+                        onClick={() => nudgeTime(1)}
+                        className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded font-mono"
+                        title="+1s"
+                      >+1s</button>
+                      <button
+                        onClick={() => nudgeTime(5)}
+                        className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded font-mono"
+                        title="+5s"
+                      >+5s</button>
+                    </div>
+
+                    {/* Active song name */}
+                    {activeSongIndex !== null && songs[activeSongIndex] && (
+                      <div className="text-xs text-center text-gray-500 truncate px-2">
+                        調整中：{songs[activeSongIndex].songName}
+                        {songs[activeSongIndex].artist ? ` / ${songs[activeSongIndex].artist}` : ''}
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
-            </div>
 
-            {/* Paste mode */}
-            {pasteMode && (
-              <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6">
-                <h3 className="font-semibold mb-2">手動貼上歌單</h3>
-                <p className="text-sm text-gray-500 mb-3">未找到含有時間戳的留言。請手動貼上歌單文字。</p>
-                <textarea
-                  data-testid="paste-text-input"
-                  value={pastedText}
-                  onChange={(e) => setPastedText(e.target.value)}
-                  placeholder="0:04:23 誰 / 李友廷&#10;0:08:26 Shape of You / Ed Sheeran&#10;..."
-                  rows={8}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300 font-mono text-sm"
-                />
-                <button
-                  data-testid="paste-extract-button"
-                  onClick={handlePasteExtract}
-                  className="mt-2 px-4 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90"
-                >
-                  擷取歌曲
-                </button>
-              </div>
-            )}
-
-            {/* Song list */}
-            {songs.length > 0 && (
-              <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">擷取到 {songs.length} 首歌曲</h3>
-                  <button
-                    onClick={() => setPasteMode(!pasteMode)}
-                    className="text-sm text-pink-500 hover:text-pink-700"
-                  >
-                    {pasteMode ? '隱藏手動輸入' : '手動貼上歌單'}
-                  </button>
+              {/* Right column: video info + song list */}
+              <div className="flex-1 min-w-0 space-y-4">
+                <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6">
+                  <h2 className="text-lg font-semibold mb-1">{videoInfo.title}</h2>
+                  <p className="text-gray-500 text-sm mb-3">{videoInfo.date}</p>
+                  {extractionSource && (
+                    <p className="text-sm text-gray-400">
+                      來源：{extractionSource === 'comment' ? `留言 (${commentAuthor || '未知'})` : '手動貼上'}
+                    </p>
+                  )}
                 </div>
 
-                <div className="space-y-2">
-                  {songs.map((song, i) => (
-                    <div
-                      key={i}
-                      data-testid={`extracted-song-${i}`}
-                      className={`flex items-center gap-3 p-3 rounded-lg ${
-                        song.suspicious ? 'bg-yellow-50 border border-yellow-200' : 'bg-gray-50'
-                      }`}
+                {/* Paste mode */}
+                {pasteMode && (
+                  <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6">
+                    <h3 className="font-semibold mb-2">手動貼上歌單</h3>
+                    <p className="text-sm text-gray-500 mb-3">未找到含有時間戳的留言。請手動貼上歌單文字。</p>
+                    <textarea
+                      data-testid="paste-text-input"
+                      value={pastedText}
+                      onChange={(e) => setPastedText(e.target.value)}
+                      placeholder="0:04:23 誰 / 李友廷&#10;0:08:26 Shape of You / Ed Sheeran&#10;..."
+                      rows={8}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300 font-mono text-sm"
+                    />
+                    <button
+                      data-testid="paste-extract-button"
+                      onClick={handlePasteExtract}
+                      className="mt-2 px-4 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90"
                     >
-                      <span className="text-gray-400 text-sm font-mono w-12">{song.startTimestamp}</span>
-                      <span className="text-gray-400 text-sm">-</span>
-                      <input
-                        data-testid={`end-timestamp-input-${i}`}
-                        value={song.endTimestamp || ''}
-                        onChange={(e) => updateSong(i, 'endTimestamp', e.target.value)}
-                        placeholder="結束"
-                        className="w-16 px-1 py-1 bg-white/50 border border-gray-200 rounded hover:border-gray-300 focus:border-pink-400 focus:outline-none text-sm font-mono text-gray-900 font-bold"
-                      />
-                      {durationBadge(song.durationSource)}
-                      <input
-                        value={song.songName}
-                        onChange={(e) => updateSong(i, 'songName', e.target.value)}
-                        className="flex-1 px-2 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none"
-                      />
-                      <span className="text-gray-400">/</span>
-                      {artistBadge(song.artistSource)}
-                      <input
-                        value={song.artist}
-                        onChange={(e) => updateSong(i, 'artist', e.target.value)}
-                        className="flex-1 px-2 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none"
-                      />
-                      <button onClick={() => removeSong(i)} className="text-gray-400 hover:text-red-500">
-                        <Trash2 size={14} />
+                      擷取歌曲
+                    </button>
+                  </div>
+                )}
+
+                {/* Song list */}
+                {songs.length > 0 && (
+                  <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold">擷取到 {songs.length} 首歌曲</h3>
+                      <button
+                        onClick={() => setPasteMode(!pasteMode)}
+                        className="text-sm text-pink-500 hover:text-pink-700"
+                      >
+                        {pasteMode ? '隱藏手動輸入' : '手動貼上歌單'}
                       </button>
                     </div>
-                  ))}
-                </div>
 
-                <div className="mt-6 flex gap-3">
-                  <button
-                    data-testid="import-button"
-                    onClick={handleImport}
-                    className="px-6 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90 flex items-center gap-2"
-                  >
-                    <Download size={16} />
-                    匯入到歌曲庫
-                  </button>
-                  <button
-                    onClick={() => { setStep('input'); setVideoInfo(null); setSongs([]); }}
-                    className="px-4 py-2 text-gray-500 hover:text-gray-700"
-                  >
-                    取消
-                  </button>
-                </div>
+                    <div className="space-y-2">
+                      {songs.map((song, i) => (
+                        <div
+                          key={i}
+                          data-testid={`extracted-song-${i}`}
+                          className={`flex items-center gap-3 p-3 rounded-lg border-l-4 ${
+                            activeSongIndex === i
+                              ? 'bg-pink-50 border-l-pink-400'
+                              : song.suspicious
+                              ? 'bg-yellow-50 border-l-yellow-200 border border-yellow-200'
+                              : 'bg-gray-50 border-l-transparent'
+                          }`}
+                        >
+                          <button
+                            onClick={() => seekPreview(song.startSeconds, i)}
+                            className="text-blue-500 hover:text-blue-700 hover:underline text-sm font-mono w-12 text-left"
+                            title="跳到此時間點"
+                          >
+                            {song.startTimestamp}
+                          </button>
+                          <span className="text-gray-400 text-sm">-</span>
+                          <input
+                            data-testid={`end-timestamp-input-${i}`}
+                            value={song.endTimestamp || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateSong(i, 'endTimestamp', val);
+                              // Debounced seek: parse typed timestamp and seek player
+                              if (seekDebounceRef.current) clearTimeout(seekDebounceRef.current);
+                              seekDebounceRef.current = setTimeout(() => {
+                                if (!previewPlayerRef.current) return;
+                                const parts = val.trim().split(':').map(Number);
+                                let secs: number | null = null;
+                                if (parts.length === 2 && parts.every(n => !isNaN(n))) secs = parts[0] * 60 + parts[1];
+                                else if (parts.length === 3 && parts.every(n => !isNaN(n))) secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                                if (secs !== null) previewPlayerRef.current.seekTo(secs, true);
+                              }, 400);
+                            }}
+                            onFocus={() => {
+                              setActiveSongIndex(i);
+                              if (song.endSeconds !== null && previewPlayerRef.current) {
+                                previewPlayerRef.current.seekTo(song.endSeconds, true);
+                              }
+                            }}
+                            onBlur={() => {
+                              // Cancel any pending debounced seek on blur
+                              if (seekDebounceRef.current) { clearTimeout(seekDebounceRef.current); seekDebounceRef.current = null; }
+                            }}
+                            onKeyDown={(e) => {
+                              if (!previewPlayerRef.current) return;
+                              if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                                e.preventDefault();
+                                const delta = e.key === 'ArrowRight'
+                                  ? (e.shiftKey ? 5 : 1)
+                                  : (e.shiftKey ? -5 : -1);
+                                nudgeTime(delta);
+                                // Read new player time after seek settles and write back to input
+                                setTimeout(() => {
+                                  if (!previewPlayerRef.current) return;
+                                  const t = Math.round(previewPlayerRef.current.getCurrentTime() ?? 0);
+                                  updateSong(i, 'endTimestamp', secondsToTimestamp(t));
+                                }, 80);
+                              } else if (e.key === ' ') {
+                                e.preventDefault();
+                                togglePreviewPlayPause();
+                              }
+                            }}
+                            placeholder="結束"
+                            className="w-16 px-1 py-1 bg-white/50 border border-gray-200 rounded hover:border-gray-300 focus:border-pink-400 focus:outline-none text-sm font-mono text-gray-900 font-bold"
+                          />
+                          {!isManual && (
+                            <button
+                              onClick={() => setEndTimeFromPlayer(i)}
+                              className="text-gray-400 hover:text-pink-500 shrink-0"
+                              title="從播放器時間設定結束點"
+                            >
+                              <Crosshair size={14} />
+                            </button>
+                          )}
+                          {durationBadge(song.durationSource)}
+                          <input
+                            value={song.songName}
+                            onChange={(e) => updateSong(i, 'songName', e.target.value)}
+                            className="flex-1 px-2 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none"
+                          />
+                          <span className="text-gray-400">/</span>
+                          {artistBadge(song.artistSource)}
+                          <input
+                            value={song.artist}
+                            onChange={(e) => updateSong(i, 'artist', e.target.value)}
+                            className="flex-1 px-2 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none"
+                          />
+                          <button onClick={() => removeSong(i)} className="text-gray-400 hover:text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-6 flex gap-3">
+                      <button
+                        data-testid="import-button"
+                        onClick={handleImport}
+                        className="px-6 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90 flex items-center gap-2"
+                      >
+                        <Download size={16} />
+                        匯入到歌曲庫
+                      </button>
+                      <button
+                        onClick={() => { setStep('input'); setVideoInfo(null); setSongs([]); }}
+                        className="px-4 py-2 text-gray-500 hover:text-gray-700"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          );
+        })()}
 
         {/* Step 4: Import complete */}
         {step === 'done' && importResult && (
