@@ -20,6 +20,11 @@ describe('extractVideoId', () => {
     expect(extractVideoId('https://www.youtube.com/embed/lVAiHsvF8z8')).toBe('lVAiHsvF8z8');
   });
 
+  it('extracts from live URL', () => {
+    expect(extractVideoId('https://www.youtube.com/live/lVAiHsvF8z8')).toBe('lVAiHsvF8z8');
+    expect(extractVideoId('https://youtube.com/live/lVAiHsvF8z8')).toBe('lVAiHsvF8z8');
+  });
+
   it('extracts bare video ID', () => {
     expect(extractVideoId('lVAiHsvF8z8')).toBe('lVAiHsvF8z8');
   });

@@ -42,9 +42,9 @@ export function extractVideoId(input: string): string | null {
       const v = url.searchParams.get('v');
       if (v && VIDEO_ID_RE.test(v)) return v;
 
-      // youtube.com/embed/ID
-      const embedMatch = url.pathname.match(/\/embed\/([A-Za-z0-9_-]{11})/);
-      if (embedMatch) return embedMatch[1];
+      // youtube.com/embed/ID or youtube.com/live/ID
+      const pathMatch = url.pathname.match(/\/(?:embed|live)\/([A-Za-z0-9_-]{11})/);
+      if (pathMatch) return pathMatch[1];
     }
 
     // youtu.be/ID

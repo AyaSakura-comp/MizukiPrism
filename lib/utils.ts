@@ -3,11 +3,13 @@ export function extractVideoId(youtubeUrl: string): string | null {
   if (watchMatch) return watchMatch[1];
   const shortMatch = youtubeUrl.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
   if (shortMatch) return shortMatch[1];
+  const liveMatch = youtubeUrl.match(/youtube\.com\/live\/([a-zA-Z0-9_-]+)/);
+  if (liveMatch) return liveMatch[1];
   return null;
 }
 
 export function validateYoutubeUrl(url: string): boolean {
-  return /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[a-zA-Z0-9_-]+/.test(url);
+  return /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|live\/)|youtu\.be\/)[a-zA-Z0-9_-]+/.test(url);
 }
 
 export function validateTimestamp(ts: string): boolean {
