@@ -140,9 +140,14 @@ export async function fetchItunesSongInfo(artist: string, title: string): Promis
       country: 'JP',
       limit: '5',
     });
-    const res = await fetch(`https://itunes.apple.com/search?${params}`, {
-      signal: AbortSignal.timeout(5000),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    let res: Response;
+    try {
+      res = await fetch(`https://itunes.apple.com/search?${params}`, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
     if (!res.ok) return null;
     const data = await res.json();
     for (const r of data.results ?? []) {
