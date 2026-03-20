@@ -1,9 +1,9 @@
 // app/admin/discover/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle, Crosshair, Play, Pause } from 'lucide-react';
+import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle, Crosshair, Play, Pause, RotateCcw, ClipboardCopy } from 'lucide-react';
 import { fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '@/lib/youtube-api';
 import { parseTextToSongs, findCandidateComment, secondsToTimestamp } from '@/lib/admin/extraction';
 import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchItunesSongInfo, fetchMusicBrainzSongInfo } from '@/lib/supabase-admin';
@@ -45,6 +45,7 @@ export default function DiscoverPage() {
   const [url, setUrl] = useState('');
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [songs, setSongs] = useState<ExtractedSong[]>([]);
+  const [copiedSongList, setCopiedSongList] = useState(false);
   const [extractionSource, setExtractionSource] = useState<string | null>(null);
   const [commentAuthor, setCommentAuthor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +64,7 @@ export default function DiscoverPage() {
   const [activeSongIndex, setActiveSongIndex] = useState<number | null>(null);
   const [playerReloadKey, setPlayerReloadKey] = useState(0);
   const activeSongIndexRef = useRef<number | null>(null);
+  const originalSongsRef = useRef<ExtractedSong[]>([]);
   // Keep ref in sync so the player interval can read it without stale closure
   useEffect(() => { activeSongIndexRef.current = activeSongIndex; }, [activeSongIndex]);
   const [playerCurrentTime, setPlayerCurrentTime] = useState<number>(0);
@@ -72,6 +74,17 @@ export default function DiscoverPage() {
   const ytPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const seekDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Derived formatted song list text for copy block
+  const songListText = useMemo(() => {
+    return songs.map((song, i) => {
+      const idx = String(i + 1).padStart(2, '0');
+      const start = formatTime(song.startSeconds ?? 0);
+      const end = song.endSeconds != null ? ` ~ ${formatTime(song.endSeconds)}` : '';
+      const artist = song.artist ? ` / ${song.artist}` : '';
+      return `${idx}. ${start}${end} ${song.songName}${artist}`;
+    }).join('\n');
+  }, [songs]);
 
   // Auth check
   useEffect(() => {
@@ -352,6 +365,7 @@ export default function DiscoverPage() {
           }
           parsed[i] = s;
         }
+        originalSongsRef.current = parsed as any[];
         setSongs(parsed as any[]);
         setExtractionSource('comment');
         setCommentAuthor(candidate.author ?? null);
@@ -370,6 +384,7 @@ export default function DiscoverPage() {
   async function handlePasteExtract() {
     try {
       const parsed = parseTextToSongs(pastedText).map(s => ({ ...s, durationSource: 'none' as const, artistSource: s.artist ? 'comment' as const : 'none' as const }));
+      originalSongsRef.current = parsed as any[];
       setSongs(parsed as any[]);
       setExtractionSource('text');
       setPasteMode(false);
@@ -397,6 +412,7 @@ export default function DiscoverPage() {
         isNewStreamer: false,
         existingStreamer: null,
       });
+      originalSongsRef.current = parsed as any[];
       setSongs(parsed as any[]);
       setExtractionSource('text');
       setPasteMode(false);
@@ -465,6 +481,11 @@ export default function DiscoverPage() {
 
   function removeSong(index: number) {
     setSongs((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function resetSong(index: number) {
+    const orig = originalSongsRef.current[index];
+    if (orig) setSongs((prev) => prev.map((s, i) => i === index ? { ...orig } : s));
   }
 
   function durationBadge(source: ExtractedSong['durationSource']) {
@@ -871,12 +892,35 @@ export default function DiscoverPage() {
                               onChange={(e) => updateSong(i, 'artist', e.target.value)}
                               className="flex-1 min-w-0 px-2 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none"
                             />
+                            <button onClick={() => resetSong(i)} className="text-gray-400 hover:text-blue-500 shrink-0" title="還原此曲目">
+                              <RotateCcw size={14} />
+                            </button>
                             <button onClick={() => removeSong(i)} className="text-gray-400 hover:text-red-500 shrink-0">
                               <Trash2 size={14} />
                             </button>
                           </div>
                         </div>
                       ))}
+                    </div>
+
+                    {/* Copy song list block */}
+                    <div className="mt-4 rounded-lg border border-white/60 bg-white/50 p-4" data-testid="song-list-copy-block">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-600">歌單文字</span>
+                        <button
+                          data-testid="copy-song-list-button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(songListText);
+                            setCopiedSongList(true);
+                            setTimeout(() => setCopiedSongList(false), 2000);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1 text-sm rounded-lg bg-white/80 border border-white/60 hover:bg-white text-gray-600 hover:text-gray-900 transition-colors"
+                        >
+                          {copiedSongList ? <Check size={14} className="text-green-500" /> : <ClipboardCopy size={14} />}
+                          {copiedSongList ? '已複製！' : '複製'}
+                        </button>
+                      </div>
+                      <pre className="text-sm text-gray-500 whitespace-pre-wrap font-mono leading-relaxed">{songListText}</pre>
                     </div>
 
                     <div className="mt-6 flex gap-3">
