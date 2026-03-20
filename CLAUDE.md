@@ -169,11 +169,15 @@ Two separate YouTube clients exist:
 
 ### Discover Page Preview Player
 
-When in the review step (YouTube URL mode), the discover page shows a two-column layout:
-- **Left**: Sticky YouTube IFrame player card with ±1s/±5s nudge buttons and play/pause
-- **Right**: Song list with blue clickable start timestamps and crosshair `⊙` set-end buttons
+When in the review step (YouTube URL mode), the discover page shows a responsive layout:
+- **Mobile**: Player card stacked full-width at top (sticky), song list below
+- **Desktop (lg:)**: Two-column layout — sticky 400px player card on left, song list on right
+
+Player card also has a `↺ 重新載入播放器` button at the bottom to destroy and recreate the YouTube iframe if it fails to load (increments `playerReloadKey` state, triggering the player `useEffect`).
 
 Player is initialized by polling `window.YT?.Player` (avoids React state batching race). Uses a `useRef` container with a dynamically-appended child div so React re-renders don't detach the YT iframe.
+
+**Live end-timestamp sync**: While the player is playing, the active song's end-timestamp input updates every 500ms to match the current player time. `activeSongIndexRef` (a ref mirroring `activeSongIndex` state) is used inside the interval to avoid stale closure.
 
 End-timestamp input keyboard workflow (while focused):
 - **Type timestamp** → debounced 400ms seek; player jumps to typed time
@@ -183,6 +187,8 @@ End-timestamp input keyboard workflow (while focused):
 - **Space** → play/pause (no space typed into input)
 - **⊙ button** → writes current player time → end-timestamp input
 - **Focus** → seeks player to existing end time
+
+Mobile song rows use a two-line layout (`flex-col sm:flex-row`): timestamps + badge on line 1, song name / artist on line 2.
 
 Manual mode (videoId starts with `manual`): no player, single-column layout.
 
