@@ -62,6 +62,9 @@ export default function DiscoverPage() {
   // Preview player state
   const [activeSongIndex, setActiveSongIndex] = useState<number | null>(null);
   const [playerReloadKey, setPlayerReloadKey] = useState(0);
+  const activeSongIndexRef = useRef<number | null>(null);
+  // Keep ref in sync so the player interval can read it without stale closure
+  useEffect(() => { activeSongIndexRef.current = activeSongIndex; }, [activeSongIndex]);
   const [playerCurrentTime, setPlayerCurrentTime] = useState<number>(0);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const previewPlayerRef = useRef<any>(null);
@@ -128,9 +131,17 @@ export default function DiscoverPage() {
             previewPlayerRef.current = e.target;
             timeUpdateRef.current = setInterval(() => {
               if (previewPlayerRef.current) {
-                setPlayerCurrentTime(previewPlayerRef.current.getCurrentTime() ?? 0);
+                const t = previewPlayerRef.current.getCurrentTime() ?? 0;
+                setPlayerCurrentTime(t);
                 const state = previewPlayerRef.current.getPlayerState?.();
-                setIsPreviewPlaying(state === 1);
+                const playing = state === 1;
+                setIsPreviewPlaying(playing);
+                // Continuously sync active song's end-timestamp while playing
+                const idx = activeSongIndexRef.current;
+                if (playing && idx !== null) {
+                  const ts = secondsToTimestamp(Math.round(t));
+                  setSongs(prev => prev.map((s, i) => i === idx ? { ...s, endTimestamp: ts, endSeconds: Math.round(t) } : s));
+                }
               }
             }, 500);
           },
@@ -190,7 +201,6 @@ export default function DiscoverPage() {
     if (!previewPlayerRef.current) return;
     if (isPreviewPlaying) {
       previewPlayerRef.current.pauseVideo();
-      if (activeSongIndex !== null) setEndTimeFromPlayer(activeSongIndex);
     } else {
       previewPlayerRef.current.playVideo();
     }
