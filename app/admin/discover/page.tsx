@@ -189,6 +189,7 @@ export default function DiscoverPage() {
     if (!previewPlayerRef.current) return;
     if (isPreviewPlaying) {
       previewPlayerRef.current.pauseVideo();
+      if (activeSongIndex !== null) setEndTimeFromPlayer(activeSongIndex);
     } else {
       previewPlayerRef.current.playVideo();
     }
@@ -676,6 +677,7 @@ export default function DiscoverPage() {
                         title="-1s"
                       >-1s</button>
                       <button
+                        data-testid="preview-play-pause-btn"
                         onClick={togglePreviewPlayPause}
                         className="px-3 py-1.5 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90"
                       >
