@@ -649,11 +649,11 @@ export default function DiscoverPage() {
         {step === 'review' && videoInfo && (() => {
           const isManual = videoInfo.videoId.startsWith('manual');
           return (
-            <div className={`flex gap-6 ${isManual ? '' : 'items-start'}`}>
+            <div className={`lg:flex lg:gap-6 space-y-4 lg:space-y-0 ${isManual ? '' : 'lg:items-start'}`}>
               {/* Left column: YouTube preview player */}
               {!isManual && (
-                <div className="lg:w-[400px] shrink-0 lg:sticky lg:top-6 self-start">
-                  <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-4 space-y-3">
+                <div className="-mx-4 px-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 lg:w-[400px] lg:shrink-0 sticky top-0 lg:top-6 lg:self-start z-10 pb-3 lg:pb-0 bg-pink-50 lg:bg-transparent w-auto">
+                  <div className="bg-white lg:bg-white/80 lg:backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-4 space-y-3">
                     <div className="relative aspect-video bg-black rounded-lg overflow-hidden [&_iframe]:absolute [&_iframe]:inset-0 [&_iframe]:w-full [&_iframe]:h-full">
                       <div ref={playerContainerRef} className="w-full h-full" />
                     </div>
@@ -741,7 +741,7 @@ export default function DiscoverPage() {
 
                 {/* Song list */}
                 {songs.length > 0 && (
-                  <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6">
+                  <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/60 p-6 overflow-x-hidden">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="font-semibold">擷取到 {songs.length} 首歌曲</h3>
                       <button
@@ -757,7 +757,7 @@ export default function DiscoverPage() {
                         <div
                           key={i}
                           data-testid={`extracted-song-${i}`}
-                          className={`flex items-center gap-3 p-3 rounded-lg border-l-4 ${
+                          className={`flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 p-3 rounded-lg border-l-4 ${
                             activeSongIndex === i
                               ? 'bg-pink-50 border-l-pink-400'
                               : song.suspicious
@@ -765,88 +765,94 @@ export default function DiscoverPage() {
                               : 'bg-gray-50 border-l-transparent'
                           }`}
                         >
-                          <button
-                            onClick={() => seekPreview(song.startSeconds, i)}
-                            className="text-blue-500 hover:text-blue-700 hover:underline text-sm font-mono w-12 text-left"
-                            title="跳到此時間點"
-                          >
-                            {song.startTimestamp}
-                          </button>
-                          <span className="text-gray-400 text-sm">-</span>
-                          <input
-                            data-testid={`end-timestamp-input-${i}`}
-                            value={song.endTimestamp || ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              updateSong(i, 'endTimestamp', val);
-                              // Debounced seek: parse typed timestamp and seek player
-                              if (seekDebounceRef.current) clearTimeout(seekDebounceRef.current);
-                              seekDebounceRef.current = setTimeout(() => {
-                                if (!previewPlayerRef.current) return;
-                                const parts = val.trim().split(':').map(Number);
-                                let secs: number | null = null;
-                                if (parts.length === 2 && parts.every(n => !isNaN(n))) secs = parts[0] * 60 + parts[1];
-                                else if (parts.length === 3 && parts.every(n => !isNaN(n))) secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
-                                if (secs !== null) previewPlayerRef.current.seekTo(secs, true);
-                              }, 400);
-                            }}
-                            onFocus={() => {
-                              setActiveSongIndex(i);
-                              if (song.endSeconds !== null && previewPlayerRef.current) {
-                                previewPlayerRef.current.seekTo(song.endSeconds, true);
-                              }
-                            }}
-                            onBlur={() => {
-                              // Cancel any pending debounced seek on blur
-                              if (seekDebounceRef.current) { clearTimeout(seekDebounceRef.current); seekDebounceRef.current = null; }
-                            }}
-                            onKeyDown={(e) => {
-                              if (!previewPlayerRef.current) return;
-                              if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-                                e.preventDefault();
-                                const delta = e.key === 'ArrowRight'
-                                  ? (e.shiftKey ? 5 : 1)
-                                  : (e.shiftKey ? -5 : -1);
-                                nudgeTime(delta);
-                                // Read new player time after seek settles and write back to input
-                                setTimeout(() => {
-                                  if (!previewPlayerRef.current) return;
-                                  const t = Math.round(previewPlayerRef.current.getCurrentTime() ?? 0);
-                                  updateSong(i, 'endTimestamp', secondsToTimestamp(t));
-                                }, 80);
-                              } else if (e.key === ' ') {
-                                e.preventDefault();
-                                togglePreviewPlayPause();
-                              }
-                            }}
-                            placeholder="結束"
-                            className="w-16 px-1 py-1 bg-white/50 border border-gray-200 rounded hover:border-gray-300 focus:border-pink-400 focus:outline-none text-sm font-mono text-gray-900 font-bold"
-                          />
-                          {!isManual && (
+                          {/* Row 1 (mobile) / all-in-one (desktop): timestamps + badges */}
+                          <div className="flex items-center gap-2 sm:contents">
                             <button
-                              onClick={() => setEndTimeFromPlayer(i)}
-                              className="text-gray-400 hover:text-pink-500 shrink-0"
-                              title="從播放器時間設定結束點"
+                              onClick={() => seekPreview(song.startSeconds, i)}
+                              className="text-blue-500 hover:text-blue-700 hover:underline text-sm font-mono min-w-[3rem] text-left shrink-0"
+                              title="跳到此時間點"
                             >
-                              <Crosshair size={14} />
+                              {song.startTimestamp}
                             </button>
-                          )}
-                          {durationBadge(song.durationSource)}
-                          <input
-                            value={song.songName}
-                            onChange={(e) => updateSong(i, 'songName', e.target.value)}
-                            className="flex-1 px-2 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none"
-                          />
-                          <span className="text-gray-400">/</span>
-                          {artistBadge(song.artistSource)}
-                          <input
-                            value={song.artist}
-                            onChange={(e) => updateSong(i, 'artist', e.target.value)}
-                            className="flex-1 px-2 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none"
-                          />
-                          <button onClick={() => removeSong(i)} className="text-gray-400 hover:text-red-500">
-                            <Trash2 size={14} />
-                          </button>
+                            <span className="text-gray-400 text-sm shrink-0">-</span>
+                            <input
+                              data-testid={`end-timestamp-input-${i}`}
+                              value={song.endTimestamp || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateSong(i, 'endTimestamp', val);
+                                // Debounced seek: parse typed timestamp and seek player
+                                if (seekDebounceRef.current) clearTimeout(seekDebounceRef.current);
+                                seekDebounceRef.current = setTimeout(() => {
+                                  if (!previewPlayerRef.current) return;
+                                  const parts = val.trim().split(':').map(Number);
+                                  let secs: number | null = null;
+                                  if (parts.length === 2 && parts.every(n => !isNaN(n))) secs = parts[0] * 60 + parts[1];
+                                  else if (parts.length === 3 && parts.every(n => !isNaN(n))) secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                                  if (secs !== null) previewPlayerRef.current.seekTo(secs, true);
+                                }, 400);
+                              }}
+                              onFocus={() => {
+                                setActiveSongIndex(i);
+                                if (song.endSeconds !== null && previewPlayerRef.current) {
+                                  previewPlayerRef.current.seekTo(song.endSeconds, true);
+                                }
+                              }}
+                              onBlur={() => {
+                                // Cancel any pending debounced seek on blur
+                                if (seekDebounceRef.current) { clearTimeout(seekDebounceRef.current); seekDebounceRef.current = null; }
+                              }}
+                              onKeyDown={(e) => {
+                                if (!previewPlayerRef.current) return;
+                                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                                  e.preventDefault();
+                                  const delta = e.key === 'ArrowRight'
+                                    ? (e.shiftKey ? 5 : 1)
+                                    : (e.shiftKey ? -5 : -1);
+                                  nudgeTime(delta);
+                                  // Read new player time after seek settles and write back to input
+                                  setTimeout(() => {
+                                    if (!previewPlayerRef.current) return;
+                                    const t = Math.round(previewPlayerRef.current.getCurrentTime() ?? 0);
+                                    updateSong(i, 'endTimestamp', secondsToTimestamp(t));
+                                  }, 80);
+                                } else if (e.key === ' ') {
+                                  e.preventDefault();
+                                  togglePreviewPlayPause();
+                                }
+                              }}
+                              placeholder="結束"
+                              className="w-[5rem] px-1 py-1 bg-white/50 border border-gray-200 rounded hover:border-gray-300 focus:border-pink-400 focus:outline-none text-sm font-mono text-gray-900 font-bold shrink-0"
+                            />
+                            {!isManual && (
+                              <button
+                                onClick={() => setEndTimeFromPlayer(i)}
+                                className="text-gray-400 hover:text-pink-500 shrink-0"
+                                title="從播放器時間設定結束點"
+                              >
+                                <Crosshair size={14} />
+                              </button>
+                            )}
+                            {durationBadge(song.durationSource)}
+                          </div>
+                          {/* Row 2 (mobile) / continuation (desktop): song name + artist */}
+                          <div className="flex items-center gap-2 sm:contents min-w-0">
+                            <input
+                              value={song.songName}
+                              onChange={(e) => updateSong(i, 'songName', e.target.value)}
+                              className="flex-1 min-w-0 px-2 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none"
+                            />
+                            <span className="text-gray-400 shrink-0">/</span>
+                            {artistBadge(song.artistSource)}
+                            <input
+                              value={song.artist}
+                              onChange={(e) => updateSong(i, 'artist', e.target.value)}
+                              className="flex-1 min-w-0 px-2 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none"
+                            />
+                            <button onClick={() => removeSong(i)} className="text-gray-400 hover:text-red-500 shrink-0">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
