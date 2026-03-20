@@ -61,6 +61,7 @@ export default function DiscoverPage() {
 
   // Preview player state
   const [activeSongIndex, setActiveSongIndex] = useState<number | null>(null);
+  const [playerReloadKey, setPlayerReloadKey] = useState(0);
   const [playerCurrentTime, setPlayerCurrentTime] = useState<number>(0);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const previewPlayerRef = useRef<any>(null);
@@ -160,7 +161,7 @@ export default function DiscoverPage() {
         previewPlayerRef.current = null;
       }
     };
-  }, [step, videoInfo]);
+  }, [step, videoInfo, playerReloadKey]);
 
   // Preview player helpers
   function seekPreview(seconds: number, songIndex?: number) {
@@ -702,6 +703,15 @@ export default function DiscoverPage() {
                         {songs[activeSongIndex].artist ? ` / ${songs[activeSongIndex].artist}` : ''}
                       </div>
                     )}
+
+                    {/* Reload player button */}
+                    <button
+                      onClick={() => setPlayerReloadKey(k => k + 1)}
+                      className="w-full text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded py-1 transition-colors"
+                      title="重新載入 YouTube 播放器"
+                    >
+                      ↺ 重新載入播放器
+                    </button>
                   </div>
                 </div>
               )}
