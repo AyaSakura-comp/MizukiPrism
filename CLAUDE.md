@@ -23,7 +23,7 @@ app/
 ├── admin/
 │   ├── login/page.tsx        Admin login (localStorage password check)
 │   ├── page.tsx              Admin dashboard — streams/songs CRUD
-│   ├── discover/page.tsx     Import new streams from YouTube URL
+│   ├── discover/page.tsx     Import new streams from YouTube URL (with embedded preview player)
 │   ├── stamp/page.tsx        Timestamp marking UI for performances
 │   ├── metadata/page.tsx     View metadata coverage (read-only, CLI for fetching)
 │   └── deploy/page.tsx       Info page — explains Supabase is live, no deploy needed
@@ -161,6 +161,31 @@ Two separate YouTube clients exist:
 - `lib/youtube-api.ts` — Uses YouTube Data API v3 with an API key. **Browser-safe** (CORS allowed). Used in `/admin/discover`. Key is HTTP-referrer restricted in Google Cloud Console (allowed: `localhost:*/*`, `https://prism.mizuki.tw/*`).
 - `lib/admin/youtube.ts` — Uses YouTube's internal Innertube API by scraping `ytInitialData` from HTML pages. **Server-side only** (no CORS). Used by MizukiLens CLI tools.
 
+`extractVideoId` in both `lib/utils.ts` and `lib/admin/youtube.ts` supports:
+- `youtube.com/watch?v=ID`
+- `youtu.be/ID`
+- `youtube.com/live/ID` (including `?si=` suffix)
+- `youtube.com/embed/ID` (admin/youtube.ts only)
+
+### Discover Page Preview Player
+
+When in the review step (YouTube URL mode), the discover page shows a two-column layout:
+- **Left**: Sticky YouTube IFrame player card with ±1s/±5s nudge buttons and play/pause
+- **Right**: Song list with blue clickable start timestamps and crosshair `⊙` set-end buttons
+
+Player is initialized by polling `window.YT?.Player` (avoids React state batching race). Uses a `useRef` container with a dynamically-appended child div so React re-renders don't detach the YT iframe.
+
+End-timestamp input keyboard workflow (while focused):
+- **Type timestamp** → debounced 400ms seek; player jumps to typed time
+- **Blur** → cancels pending debounce (no seek fires)
+- **←/→** → nudge ±1s; input value syncs back after 80ms
+- **Shift+←/→** → nudge ±5s; input value syncs back
+- **Space** → play/pause (no space typed into input)
+- **⊙ button** → writes current player time → end-timestamp input
+- **Focus** → seeks player to existing end time
+
+Manual mode (videoId starts with `manual`): no player, single-column layout.
+
 ### Streamer Filter
 
 - Filter buttons on fan page are derived from `streamersWithSongs` — only streamers that have at least one performance in the loaded song catalog are shown.
@@ -296,6 +321,7 @@ Playwright tests live in `tests/*.spec.ts`. Key test files:
 - `tests/e2e-verify.spec.ts` — 3 core flows: fan page playback, admin login, discover import
 - `tests/discover-kirali-manual.spec.ts` — import `TGuSYMpwepw` via discover UI
 - `tests/discover-itunes-duration.spec.ts` — iTunes duration badges: manual paste (none badges) + YouTube URL (iTunes/MusicBrainz badges)
+- `tests/discover-preview-player.spec.ts` — 9 tests for the discover page YouTube preview player (layout, iframe load, active row, end-timestamp focus/type/blur/keyboard)
 - `tests/core-001.spec.ts` — core fan-facing page assertions
 
 ### E2E Video Recording & Verification Flow
