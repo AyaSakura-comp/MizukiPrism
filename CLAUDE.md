@@ -208,6 +208,8 @@ End-timestamp input keyboard workflow (while focused):
 
 Mobile song rows use a two-line layout (`flex-col sm:flex-row`): timestamps + badge on line 1, song name / artist on line 2.
 
+**Space key focus trap**: The review step wraps all content in a focusable `<div tabIndex={0}>` (`reviewFocusTrapRef`). Auto-focuses on step entry. Clicking outside inputs/buttons refocuses the container so Space always reaches the `onKeyDown` handler. Native `keydown` listener prevents Space-induced scroll; React `onKeyDown` calls `togglePreviewPlayPause()`. Skips only `INPUT`/`TEXTAREA` — buttons are NOT skipped (see rabbit hole #11).
+
 Manual mode (videoId starts with `manual`): no player, single-column layout.
 
 ### Streamer Filter
@@ -351,7 +353,19 @@ If `basePath: "/MizukiPrism"` is set without the `isProd` guard, all local dev r
 ### 10. `findCandidateComment` can pick chat logs instead of song lists
 Some YouTube streams have timestamped chat log comments (e.g., 129 lines of viewer messages). `findCandidateComment` treats these as song lists because they contain timestamps. This causes extremely long duration enrichment times (129 × 3s = ~6.5 min). Partially mitigated: `stripNonSonglistSections()` truncates at 【時間軸】/【Timestamp】 headers when both sections appear in the same comment. Remaining gap: pure chat-log comments (no section header, no `Song / Artist` separator) are still misidentified.
 
-### 11. Admin auth is not secure
+### 11. Space key on buttons causes double-toggle
+Pressing Space on a focused `<button>` triggers `click` on `keyup` (browser default). If a global/container `keydown` handler also calls `togglePreviewPlayPause()`, the function fires twice (once on keydown, once on the button's click from keyup), resulting in no visible change. Fix: the review container's `onKeyDown` handler skips only `INPUT`/`TEXTAREA` targets — it does NOT skip `BUTTON`, so Space on buttons is intercepted before the browser's default `click` fires. The `e.preventDefault()` in the handler suppresses the button activation.
+
+### 12. React synthetic `preventDefault` doesn't prevent Space scroll
+`e.preventDefault()` in React's synthetic `onKeyDown` fires AFTER the browser may have already queued scroll behavior for the Space key. To reliably prevent scroll, attach a **native** `keydown` listener directly on the element (`el.addEventListener('keydown', ...)`), which fires before React's delegated handler. The discover review container uses both: native listener for scroll prevention, React `onKeyDown` for play/pause toggle.
+
+### 13. `focus()` causes unwanted viewport scroll
+Calling `.focus()` on an element that is partially or fully off-screen causes the browser to scroll the viewport to make it visible. Use `focus({ preventScroll: true })` when programmatically focusing elements (e.g., the review container div) to avoid jarring scroll jumps. This applies to both initial focus on step entry and re-focus after clicking neutral areas.
+
+### 14. CORS blocks browser-side fetches to external sites without headers
+Sites like `nova.oshi.tw` have no `Access-Control-Allow-Origin` headers. Any browser-side `fetch()` from `localhost` or `prism.mizuki.tw` will be blocked by CORS. There is no workaround without a proxy server, which is incompatible with the static-site-only architecture (`output: 'export'`). Don't attempt to add browser-side API calls to external sites unless you've confirmed they have permissive CORS headers.
+
+### 15. Admin auth is not secure
 The admin password (`mizuki-admin`) is hardcoded in `lib/supabase-admin.ts` and visible in the JS bundle. Anyone can read it from the built JS. This is acceptable because the Supabase anon key allows the same writes anyway (RLS disabled). Do not store genuinely sensitive data or use this auth pattern for anything beyond casual protection.
 
 ## Testing & Verification
@@ -369,6 +383,8 @@ Playwright tests live in `tests/*.spec.ts`. Key test files:
 - `tests/discover-preview-player.spec.ts` — 9 tests for the discover page YouTube preview player (layout, iframe load, active row, end-timestamp focus/type/blur/keyboard)
 - `tests/discover-reset-restores-api-timestamp.spec.ts` — verifies reset button restores iTunes/MusicBrainz timestamp after live-sync overwrites it
 - `tests/channel-browser.spec.ts` — 3 tests: fetch streams + navigate to discover, streamer card click auto-loads, invalid URL error
+- `tests/discover-space-key.spec.ts` — Space key play/pause in discover review step
+- `tests/discover-lock-timestamp.spec.ts` — end-timestamp lock button + auto-lock on pause / auto-unlock on play
 - `tests/core-001.spec.ts` — core fan-facing page assertions
 
 ### E2E Video Recording & Verification Flow
