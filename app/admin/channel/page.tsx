@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, ArrowLeft } from 'lucide-react';
 import { isAuthenticated } from '@/lib/supabase-admin';
-import { loadStreams } from '@/lib/supabase-data';
+import { loadStreams, loadStreamers } from '@/lib/supabase-data';
 import {
   extractChannelInput,
   fetchChannelUploads,
@@ -23,6 +23,7 @@ export default function ChannelBrowserPage() {
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
   const [videos, setVideos] = useState<ChannelVideo[]>([]);
   const [importedVideoIds, setImportedVideoIds] = useState<Set<string>>(new Set());
+  const [streamers, setStreamers] = useState<{ channelId: string; handle: string; displayName: string; avatarUrl: string }[]>([]);
 
   useEffect(() => {
     if (!isAuthenticated()) { router.replace('/admin/login'); return; }
@@ -30,6 +31,7 @@ export default function ChannelBrowserPage() {
     loadStreams().then(streams => {
       setImportedVideoIds(new Set(streams.map(s => s.videoId)));
     }).catch(() => {/* non-critical */});
+    loadStreamers().then(setStreamers).catch(() => {/* non-critical */});
   }, [router]);
 
   async function handleSearch() {
@@ -54,6 +56,26 @@ export default function ChannelBrowserPage() {
       setLoading(false);
       setLoadingPage(0);
     }
+  }
+
+  function handleSelectStreamer(channelId: string) {
+    const url = `https://www.youtube.com/channel/${channelId}`;
+    setUrlInput(url);
+    setError(null);
+    setPartialError(null);
+    setChannel(null);
+    setVideos([]);
+    const input = extractChannelInput(url);
+    if (!input) return;
+    setLoading(true);
+    fetchChannelUploads(input, page => setLoadingPage(page))
+      .then(result => {
+        setChannel(result.channel);
+        setVideos(result.videos);
+        if (result.partialError) setPartialError(`部分載入失敗：${result.partialError}`);
+      })
+      .catch(err => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => { setLoading(false); setLoadingPage(0); });
   }
 
   if (!authenticated) return null;
@@ -98,6 +120,32 @@ export default function ChannelBrowserPage() {
             <p className="mt-2 text-sm text-red-600" data-testid="channel-error">{error}</p>
           )}
         </div>
+
+        {/* Streamer quick-select */}
+        {streamers.length > 0 && !channel && !loading && (
+          <div>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">已知頻道</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {streamers.map(s => (
+                <button
+                  key={s.channelId}
+                  onClick={() => handleSelectStreamer(s.channelId)}
+                  className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-white/60 p-4 flex flex-col items-center gap-2 hover:shadow-md hover:border-pink-200 transition-all group"
+                >
+                  {s.avatarUrl ? (
+                    <img src={s.avatarUrl} alt={s.displayName} className="w-14 h-14 rounded-full object-cover ring-2 ring-white group-hover:ring-pink-200 transition-all" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-pink-200 to-blue-200 flex items-center justify-center text-white text-xl font-bold">
+                      {s.displayName[0]}
+                    </div>
+                  )}
+                  <p className="text-sm font-medium text-slate-700 text-center leading-tight">{s.displayName}</p>
+                  {s.handle && <p className="text-xs text-slate-400">{s.handle}</p>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Loading state */}
         {loading && (
