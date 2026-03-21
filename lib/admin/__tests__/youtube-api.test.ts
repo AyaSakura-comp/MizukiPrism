@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { parseIsoDuration, fetchVideoInfo, fetchVideoComments, fetchChannelInfo, extractChannelInput } from '../../youtube-api';
+import { parseIsoDuration, fetchVideoInfo, fetchVideoComments, fetchChannelInfo, extractChannelInput, fetchChannelUploads, KARAOKE_KEYWORDS } from '../../youtube-api';
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -168,5 +168,98 @@ describe('extractChannelInput', () => {
   it('returns null for unrecognized URL', () => {
     expect(extractChannelInput('https://youtube.com/watch?v=abc')).toBeNull();
     expect(extractChannelInput('not a url')).toBeNull();
+  });
+});
+
+describe('KARAOKE_KEYWORDS', () => {
+  it('includes Japanese, Chinese, and English keywords', () => {
+    expect(KARAOKE_KEYWORDS).toContain('歌回');
+    expect(KARAOKE_KEYWORDS).toContain('カラオケ');
+    expect(KARAOKE_KEYWORDS).toContain('卡拉OK');
+    expect(KARAOKE_KEYWORDS).toContain('karaoke');
+  });
+});
+
+describe('fetchChannelUploads', () => {
+  beforeEach(() => { mockFetch.mockReset(); });
+
+  function makeChannelsResponse(uploadsPlaylistId: string) {
+    return {
+      ok: true,
+      json: async () => ({
+        items: [{
+          snippet: {
+            title: 'TestChannel',
+            customUrl: '@test',
+            thumbnails: { high: { url: 'https://example.com/avatar.jpg' } },
+            description: '',
+          },
+          contentDetails: {
+            relatedPlaylists: { uploads: uploadsPlaylistId },
+          },
+        }],
+      }),
+    };
+  }
+
+  function makePlaylistResponse(titles: string[], nextPageToken?: string) {
+    return {
+      ok: true,
+      json: async () => ({
+        items: titles.map((title, i) => ({
+          snippet: {
+            title,
+            publishedAt: `2025-0${i + 1}-01T00:00:00Z`,
+            resourceId: { videoId: `vid${i}` },
+            thumbnails: { medium: { url: `https://example.com/thumb${i}.jpg` } },
+          },
+        })),
+        nextPageToken,
+      }),
+    };
+  }
+
+  it('filters videos by karaoke keywords', async () => {
+    mockFetch
+      .mockResolvedValueOnce(makeChannelsResponse('PLtest'))
+      .mockResolvedValueOnce(makePlaylistResponse(['秋日歌回 #3', 'Gaming Video', '【カラオケ】夏夜']));
+
+    const onProgress = vi.fn();
+    const result = await fetchChannelUploads({ type: 'id', value: 'UCtest' }, onProgress);
+
+    expect(result.videos).toHaveLength(2);
+    expect(result.videos[0].title).toBe('秋日歌回 #3');
+    expect(result.videos[1].title).toBe('【カラオケ】夏夜');
+    expect(result.channel.displayName).toBe('TestChannel');
+  });
+
+  it('calls onProgress for each page', async () => {
+    mockFetch
+      .mockResolvedValueOnce(makeChannelsResponse('PLtest'))
+      .mockResolvedValueOnce(makePlaylistResponse(['歌回 1'], 'page2token'))
+      .mockResolvedValueOnce(makePlaylistResponse(['歌回 2']));
+
+    const onProgress = vi.fn();
+    await fetchChannelUploads({ type: 'id', value: 'UCtest' }, onProgress);
+
+    expect(onProgress).toHaveBeenCalledWith(1);
+    expect(onProgress).toHaveBeenCalledWith(2);
+  });
+
+  it('uses forHandle when input type is handle', async () => {
+    mockFetch
+      .mockResolvedValueOnce(makeChannelsResponse('PLtest'))
+      .mockResolvedValueOnce(makePlaylistResponse([]));
+
+    await fetchChannelUploads({ type: 'handle', value: 'mizukiTW' }, vi.fn());
+
+    const channelUrl = mockFetch.mock.calls[0][0] as string;
+    expect(channelUrl).toContain('forHandle=mizukiTW');
+    expect(channelUrl).not.toContain('&id=');
+  });
+
+  it('throws when channel not found', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ items: [] }) });
+    await expect(fetchChannelUploads({ type: 'id', value: 'UCbad' }, vi.fn())).rejects.toThrow('找不到此頻道');
   });
 });

@@ -117,3 +117,98 @@ export async function fetchChannelInfo(channelId: string): Promise<ChannelInfo> 
     description: snippet.description || '',
   };
 }
+
+export const KARAOKE_KEYWORDS = [
+  // Japanese
+  '歌回', '歌枠', 'カラオケ', '歌ってみた', '歌配信',
+  // Chinese
+  '卡拉OK', '唱歌', '翻唱',
+  // English (only 'karaoke' to avoid false positives)
+  'karaoke',
+];
+
+export interface ChannelVideo {
+  videoId: string;
+  title: string;
+  date: string;       // YYYY-MM-DD from snippet.publishedAt
+  thumbnailUrl: string;
+}
+
+export interface ChannelUploadsResult {
+  channel: ChannelInfo;
+  videos: ChannelVideo[];
+  partialError?: string;
+}
+
+/**
+ * Fetch all uploads from a channel and filter by karaoke keywords.
+ * Does NOT reuse fetchChannelInfo — needs contentDetails,snippet in one call.
+ */
+export async function fetchChannelUploads(
+  input: ChannelInput,
+  onProgress: (page: number) => void,
+  maxPages = 5,
+  keywords: string[] = KARAOKE_KEYWORDS,
+): Promise<ChannelUploadsResult> {
+  // Step 1: Resolve channel → uploadsPlaylistId + channel info
+  const idParam = input.type === 'id' ? `id=${input.value}` : `forHandle=${input.value}`;
+  const channelUrl = `${YT_BASE}/channels?part=contentDetails,snippet&${idParam}&key=${GOOGLE_API_KEY}`;
+  const channelRes = await fetch(channelUrl);
+  if (!channelRes.ok) throw new Error(`YouTube API error: ${channelRes.status}`);
+  const channelData = await channelRes.json();
+  if (!channelData.items?.length) throw new Error('找不到此頻道');
+
+  const item = channelData.items[0];
+  const snippet = item.snippet;
+  const uploadsPlaylistId: string = item.contentDetails.relatedPlaylists.uploads;
+  // item.id is always present in channels API response regardless of parts requested
+  const channel: ChannelInfo = {
+    channelId: item.id ?? input.value,
+    handle: snippet.customUrl || '',
+    displayName: snippet.title,
+    avatarUrl: snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || '',
+    description: snippet.description || '',
+  };
+
+  // Step 2: Paginate uploads playlist, filter by keywords
+  const videos: ChannelVideo[] = [];
+  let pageToken: string | undefined;
+  let page = 0;
+  let partialError: string | undefined;
+
+  while (page < maxPages) {
+    onProgress(page + 1);
+    const tokenParam = pageToken ? `&pageToken=${pageToken}` : '';
+    const listUrl = `${YT_BASE}/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50${tokenParam}&key=${GOOGLE_API_KEY}`;
+    try {
+      const listRes = await fetch(listUrl);
+      if (!listRes.ok) throw new Error(`YouTube API error: ${listRes.status}`);
+      const listData = await listRes.json();
+
+      for (const vi of (listData.items || [])) {
+        const s = vi.snippet;
+        const title: string = s.title || '';
+        const lower = title.toLowerCase();
+        if (keywords.some(k => lower.includes(k.toLowerCase()))) {
+          videos.push({
+            videoId: s.resourceId?.videoId || '',
+            title,
+            date: (s.publishedAt || '').slice(0, 10),
+            thumbnailUrl: s.thumbnails?.medium?.url || s.thumbnails?.default?.url || '',
+          });
+        }
+      }
+
+      pageToken = listData.nextPageToken;
+      page++;
+      if (!pageToken) break;
+    } catch (err) {
+      partialError = String(err);
+      break;
+    }
+  }
+
+  // Sort oldest-first
+  videos.sort((a, b) => a.date.localeCompare(b.date));
+  return { channel, videos, ...(partialError ? { partialError } : {}) };
+}
