@@ -69,7 +69,13 @@ function DiscoverPageInner() {
   const originalSongsRef = useRef<ExtractedSong[]>([]);
   const [lockedEndTimestamps, setLockedEndTimestamps] = useState<Set<number>>(new Set());
   const lockedEndTimestampsRef = useRef<Set<number>>(new Set());
-  useEffect(() => { lockedEndTimestampsRef.current = lockedEndTimestamps; }, [lockedEndTimestamps]);
+  // Sync both ref and state synchronously — ref must be updated immediately so
+  // the 500ms interval reads the correct value without a render-cycle delay
+  function setLocked(updater: (prev: Set<number>) => Set<number>) {
+    const next = updater(lockedEndTimestampsRef.current);
+    lockedEndTimestampsRef.current = next;
+    setLockedEndTimestamps(next);
+  }
   // Keep ref in sync so the player interval can read it without stale closure
   useEffect(() => { activeSongIndexRef.current = activeSongIndex; }, [activeSongIndex]);
   const [playerCurrentTime, setPlayerCurrentTime] = useState<number>(0);
@@ -81,13 +87,13 @@ function DiscoverPageInner() {
     prevIsPreviewPlayingRef.current = isPreviewPlaying;
     if (activeSongIndex === null) return;
     if (wasPlaying && !isPreviewPlaying) {
-      // playing → paused: lock
-      setLockedEndTimestamps(prev => { const next = new Set(prev); next.add(activeSongIndex); return next; });
+      // playing → paused: lock immediately (ref updated synchronously)
+      setLocked(prev => { const next = new Set(prev); next.add(activeSongIndex); return next; });
     } else if (!wasPlaying && isPreviewPlaying) {
-      // paused → playing: unlock
-      setLockedEndTimestamps(prev => { const next = new Set(prev); next.delete(activeSongIndex); return next; });
+      // paused → playing: unlock immediately
+      setLocked(prev => { const next = new Set(prev); next.delete(activeSongIndex); return next; });
     }
-  }, [isPreviewPlaying, activeSongIndex]);
+  }, [isPreviewPlaying, activeSongIndex]); // eslint-disable-line react-hooks/exhaustive-deps
   const previewPlayerRef = useRef<any>(null);
   const timeUpdateRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ytPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -239,8 +245,10 @@ function DiscoverPageInner() {
     if (!previewPlayerRef.current) return;
     if (isPreviewPlaying) {
       previewPlayerRef.current.pauseVideo();
+      setIsPreviewPlaying(false); // immediate update so auto-lock fires without waiting for the interval
     } else {
       previewPlayerRef.current.playVideo();
+      setIsPreviewPlaying(true);
     }
   }
 
@@ -513,7 +521,7 @@ function DiscoverPageInner() {
   }
 
   function toggleLockEndTimestamp(index: number) {
-    setLockedEndTimestamps(prev => {
+    setLocked(prev => {
       const next = new Set(prev);
       if (next.has(index)) next.delete(index); else next.add(index);
       return next;
@@ -524,7 +532,7 @@ function DiscoverPageInner() {
     setSongs((prev) => prev.filter((_, i) => i !== index));
     originalSongsRef.current = originalSongsRef.current.filter((_, i) => i !== index);
     // Shift locked indices
-    setLockedEndTimestamps(prev => {
+    setLocked(prev => {
       const next = new Set<number>();
       prev.forEach(idx => { if (idx < index) next.add(idx); else if (idx > index) next.add(idx - 1); });
       return next;
@@ -551,7 +559,7 @@ function DiscoverPageInner() {
         activeSongIndexRef.current = null;
       }
       // Clear lock when resetting
-      setLockedEndTimestamps(prev => { const next = new Set(prev); next.delete(index); return next; });
+      setLocked(prev => { const next = new Set(prev); next.delete(index); return next; });
     }
   }
 
