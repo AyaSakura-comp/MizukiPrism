@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, ArrowLeft } from 'lucide-react';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 import { isAuthenticated } from '@/lib/supabase-admin';
 import { loadStreams, loadStreamers } from '@/lib/supabase-data';
 import {
@@ -114,15 +115,7 @@ function ChannelBrowserInner() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff0f5] via-[#f0f8ff] to-[#e6e6fa]">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-white/60 sticky top-0 z-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
-          <button onClick={() => router.push('/admin')} className="text-slate-500 hover:text-slate-700">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <span className="font-semibold text-slate-700">瀏覽頻道歌回</span>
-        </div>
-      </header>
+      <AdminHeader />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         {/* URL input */}

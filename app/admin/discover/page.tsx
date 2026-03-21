@@ -9,6 +9,7 @@ import { parseTextToSongs, findCandidateComment, secondsToTimestamp } from '@/li
 import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchItunesSongInfo, fetchMusicBrainzSongInfo } from '@/lib/supabase-admin';
 import { supabase } from '@/lib/supabase';
 import { extractVideoId } from '@/lib/utils';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 
 interface VideoInfo {
   videoId: string;
@@ -626,8 +627,9 @@ function DiscoverPageInner() {
   if (!authenticated) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-pink-50 via-white to-blue-50 p-4 sm:p-6">
-      <div className={`${step === 'review' && videoInfo && !videoInfo.videoId.startsWith('manual') ? 'max-w-7xl' : 'max-w-4xl'} mx-auto space-y-4`}>
+    <div className="min-h-screen bg-gradient-to-b from-pink-50 via-white to-blue-50">
+      <AdminHeader />
+      <div className={`${step === 'review' && videoInfo && !videoInfo.videoId.startsWith('manual') ? 'max-w-7xl' : 'max-w-4xl'} mx-auto space-y-4 p-4 sm:p-6`}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-2">
           <button onClick={() => router.push(backHref)} className="text-gray-500 hover:text-gray-700">
