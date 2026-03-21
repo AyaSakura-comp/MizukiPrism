@@ -497,6 +497,17 @@ function DiscoverPageInner() {
 
   function removeSong(index: number) {
     setSongs((prev) => prev.filter((_, i) => i !== index));
+    originalSongsRef.current = originalSongsRef.current.filter((_, i) => i !== index);
+    // If active song shifts down due to removal, adjust index
+    if (activeSongIndex !== null) {
+      if (activeSongIndex === index) {
+        setActiveSongIndex(null);
+        activeSongIndexRef.current = null;
+      } else if (activeSongIndex > index) {
+        setActiveSongIndex(activeSongIndex - 1);
+        activeSongIndexRef.current = activeSongIndex - 1;
+      }
+    }
   }
 
   function resetSong(index: number) {
