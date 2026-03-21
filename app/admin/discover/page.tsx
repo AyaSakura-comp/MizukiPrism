@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle, Crosshair, Play, Pause, RotateCcw, ClipboardCopy } from 'lucide-react';
+import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle, Play, Pause, RotateCcw, ClipboardCopy } from 'lucide-react';
 import { fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '@/lib/youtube-api';
 import { parseTextToSongs, findCandidateComment, secondsToTimestamp } from '@/lib/admin/extraction';
 import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchItunesSongInfo, fetchMusicBrainzSongInfo } from '@/lib/supabase-admin';
@@ -206,13 +206,6 @@ export default function DiscoverPage() {
       previewPlayerRef.current.playVideo();
     }
     if (songIndex !== undefined) setActiveSongIndex(songIndex);
-  }
-
-  function setEndTimeFromPlayer(index: number) {
-    const t = Math.round(playerCurrentTime);
-    const ts = secondsToTimestamp(t);
-    updateSong(index, 'endTimestamp', ts);
-    setActiveSongIndex(index);
   }
 
   function nudgeTime(delta: number) {
@@ -497,7 +490,14 @@ export default function DiscoverPage() {
 
   function resetSong(index: number) {
     const orig = originalSongsRef.current[index];
-    if (orig) setSongs((prev) => prev.map((s, i) => i === index ? { ...orig } : s));
+    if (orig) {
+      setSongs((prev) => prev.map((s, i) => i === index ? { ...orig } : s));
+      // Stop live-syncing this song so the interval doesn't immediately overwrite the restored value
+      if (activeSongIndex === index) {
+        setActiveSongIndex(null);
+        activeSongIndexRef.current = null;
+      }
+    }
   }
 
   function durationBadge(source: ExtractedSong['durationSource']) {
@@ -755,6 +755,17 @@ export default function DiscoverPage() {
                     >
                       ↺ 重新載入播放器
                     </button>
+
+                    {/* Keyboard shortcut tips */}
+                    <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-400 space-y-1">
+                      <p className="font-medium text-gray-500 mb-1">⌨️ 快捷鍵（聚焦結束時間欄時）</p>
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                        <span><kbd className="bg-gray-100 px-1 rounded">←</kbd> / <kbd className="bg-gray-100 px-1 rounded">→</kbd></span><span>±1 秒</span>
+                        <span><kbd className="bg-gray-100 px-1 rounded">⇧←</kbd> / <kbd className="bg-gray-100 px-1 rounded">⇧→</kbd></span><span>±5 秒</span>
+                        <span><kbd className="bg-gray-100 px-1 rounded">Space</kbd></span><span>播放 / 暫停</span>
+<span><kbd className="bg-gray-100 px-1 rounded">↺</kbd> 按鈕</span><span>還原 API 偵測值</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -879,15 +890,6 @@ export default function DiscoverPage() {
                               placeholder="結束"
                               className="w-[5rem] px-1 py-1 bg-white/50 border border-gray-200 rounded hover:border-gray-300 focus:border-pink-400 focus:outline-none text-sm font-mono text-gray-900 font-bold shrink-0"
                             />
-                            {!isManual && (
-                              <button
-                                onClick={() => setEndTimeFromPlayer(i)}
-                                className="text-gray-400 hover:text-pink-500 shrink-0"
-                                title="從播放器時間設定結束點"
-                              >
-                                <Crosshair size={14} />
-                              </button>
-                            )}
                             {durationBadge(song.durationSource)}
                           </div>
                           {/* Row 2 (mobile) / continuation (desktop): song name + artist */}
@@ -962,6 +964,7 @@ export default function DiscoverPage() {
                             {[
                               { label: 'YouTube URL', value: `https://www.youtube.com/watch?v=${videoInfo.videoId}` },
                               { label: '直播標題', value: videoInfo.title },
+                              { label: '直播日期', value: videoInfo.date.replace(/-/g, '/') },
                             ].map(({ label, value }) => (
                               <div key={label} className="flex items-center gap-2">
                                 <span className="text-violet-500 w-20 shrink-0 text-xs">{label}</span>

@@ -22,7 +22,7 @@ app/
 ├── auth/page.tsx             Fan auth placeholder
 ├── admin/
 │   ├── login/page.tsx        Admin login (localStorage password check)
-│   ├── page.tsx              Admin dashboard — streams/songs CRUD
+│   ├── page.tsx              Admin dashboard — streams/songs CRUD (匯入歌曲 button navigates to /admin/discover)
 │   ├── discover/page.tsx     Import new streams from YouTube URL (with embedded preview player)
 │   ├── stamp/page.tsx        Timestamp marking UI for performances
 │   ├── metadata/page.tsx     View metadata coverage (read-only, CLI for fetching)
@@ -173,7 +173,9 @@ When in the review step (YouTube URL mode), the discover page shows a responsive
 - **Mobile**: Player card stacked full-width at top (sticky), song list below
 - **Desktop (lg:)**: Two-column layout — sticky 400px player card on left, song list on right
 
-Player card also has a `↺ 重新載入播放器` button at the bottom to destroy and recreate the YouTube iframe if it fails to load (increments `playerReloadKey` state, triggering the player `useEffect`).
+Player card has:
+- `↺ 重新載入播放器` button to destroy and recreate the YouTube iframe if it fails to load (increments `playerReloadKey` state)
+- Keyboard shortcut tips panel (visible in YouTube URL mode only): ←/→ ±1s, Shift+←/→ ±5s, Space play/pause, ↺ reset
 
 Player is initialized by polling `window.YT?.Player` (avoids React state batching race). Uses a `useRef` container with a dynamically-appended child div so React re-renders don't detach the YT iframe.
 
@@ -185,7 +187,7 @@ End-timestamp input keyboard workflow (while focused):
 - **←/→** → nudge ±1s; input value syncs back after 80ms
 - **Shift+←/→** → nudge ±5s; input value syncs back
 - **Space** → play/pause (no space typed into input)
-- **⊙ button** → writes current player time → end-timestamp input
+- **↺ button (還原)** → restores API-detected (iTunes/MusicBrainz) end-timestamp AND clears `activeSongIndex` so live-sync stops overwriting the restored value
 - **Focus** → seeks player to existing end time
 
 Mobile song rows use a two-line layout (`flex-col sm:flex-row`): timestamps + badge on line 1, song name / artist on line 2.
@@ -328,6 +330,7 @@ Playwright tests live in `tests/*.spec.ts`. Key test files:
 - `tests/discover-kirali-manual.spec.ts` — import `TGuSYMpwepw` via discover UI
 - `tests/discover-itunes-duration.spec.ts` — iTunes duration badges: manual paste (none badges) + YouTube URL (iTunes/MusicBrainz badges)
 - `tests/discover-preview-player.spec.ts` — 9 tests for the discover page YouTube preview player (layout, iframe load, active row, end-timestamp focus/type/blur/keyboard)
+- `tests/discover-reset-restores-api-timestamp.spec.ts` — verifies reset button restores iTunes/MusicBrainz timestamp after live-sync overwrites it
 - `tests/core-001.spec.ts` — core fan-facing page assertions
 
 ### E2E Video Recording & Verification Flow

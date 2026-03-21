@@ -25,30 +25,36 @@ test('pause button writes current player time to active song end-timestamp', asy
   // Click song 0's start timestamp → sets it as active and starts playing
   const song0 = page.getByTestId('extracted-song-0');
   await song0.locator('button').first().click();
-  await page.waitForTimeout(2000); // let player run a bit
+  await page.waitForTimeout(2000); // let player initialize and start
 
   // Confirm song 0 is active (pink highlight)
   await expect(song0).toHaveClass(/bg-pink-50/);
 
-  // Capture end-timestamp value before pausing
   const endInput = page.getByTestId('end-timestamp-input-0');
-  const valueBefore = await endInput.inputValue();
 
-  // Screenshot before pause
-  await page.screenshot({ path: 'test-results/pause-before.png', fullPage: false });
+  // Capture value at t=2s (should already be live-synced)
+  const valueAt2s = await endInput.inputValue();
+  await page.screenshot({ path: 'test-results/sync-at-2s.png', fullPage: false });
+  console.log(`End timestamp at 2s: "${valueAt2s}"`);
+
+  // Wait 6 more seconds — enough for the timestamp to visibly advance
+  await page.waitForTimeout(6000);
+  const valueAt8s = await endInput.inputValue();
+  await page.screenshot({ path: 'test-results/sync-at-8s.png', fullPage: false });
+  console.log(`End timestamp at 8s: "${valueAt8s}"`);
+
+  // The value must have advanced (continuous sync working)
+  expect(valueAt8s).not.toBe('');
+  expect(valueAt8s).toMatch(/^\d+:\d{2}/);
+  expect(valueAt8s).not.toBe(valueAt2s); // must have changed
 
   // Press pause
   await page.getByTestId('preview-play-pause-btn').click();
   await page.waitForTimeout(300);
 
-  // Screenshot after pause
-  await page.screenshot({ path: 'test-results/pause-after.png', fullPage: false });
+  const valueAfterPause = await endInput.inputValue();
+  await page.screenshot({ path: 'test-results/sync-after-pause.png', fullPage: false });
+  console.log(`End timestamp after pause: "${valueAfterPause}"`);
 
-  // End-timestamp should now be set to a non-empty timestamp
-  const valueAfter = await endInput.inputValue();
-  expect(valueAfter).not.toBe('');
-  expect(valueAfter).toMatch(/^\d+:\d{2}/);
-
-  // And it should differ from whatever it was before (or be newly set if it was empty)
-  console.log(`End timestamp before pause: "${valueBefore}" → after pause: "${valueAfter}"`);
+  expect(valueAfterPause).toMatch(/^\d+:\d{2}/);
 });

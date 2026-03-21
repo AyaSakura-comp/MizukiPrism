@@ -25,113 +25,11 @@ import { loadSongs, loadStreams } from '@/lib/supabase-data';
 import {
   isAuthenticated,
   logout,
-  createStream,
   createPerformance,
   updatePerformance,
   updateSong,
   deletePerformance,
 } from '@/lib/supabase-admin';
-
-// StreamForm component
-function StreamForm({
-  onSuccess,
-  onCancel,
-}: {
-  onSuccess: (stream: Stream) => void;
-  onCancel: () => void;
-}) {
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState('');
-  const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const stream = await createStream(title, date, youtubeUrl);
-      onSuccess(stream);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '建立失敗');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4" data-testid="stream-form">
-      <div>
-        <label className="block text-sm font-medium text-slate-600 mb-1">直播標題</label>
-        <input
-          type="text"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          required
-          placeholder="例：秋日歌回"
-          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-100 outline-none bg-white text-slate-700 placeholder-slate-400 text-sm"
-          data-testid="stream-title-input"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-slate-600 mb-1">直播日期</label>
-        <input
-          type="date"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-          required
-          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-100 outline-none bg-white text-slate-700 text-sm"
-          data-testid="stream-date-input"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-slate-600 mb-1">YouTube URL</label>
-        <input
-          type="text"
-          value={youtubeUrl}
-          onChange={e => setYoutubeUrl(e.target.value)}
-          required
-          placeholder="https://www.youtube.com/watch?v=..."
-          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-100 outline-none bg-white text-slate-700 placeholder-slate-400 text-sm"
-          data-testid="stream-url-input"
-        />
-      </div>
-
-      {error && (
-        <div
-          className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm"
-          data-testid="stream-form-error"
-        >
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          {error}
-        </div>
-      )}
-
-      <div className="flex gap-3 pt-2">
-        <button
-          type="submit"
-          disabled={loading}
-          className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-pink-400 to-blue-400 text-white font-medium text-sm shadow-md hover:brightness-105 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          data-testid="stream-submit-button"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-          建立直播場次
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors"
-        >
-          取消
-        </button>
-      </div>
-    </form>
-  );
-}
 
 // VersionForm component
 function VersionForm({
@@ -584,7 +482,6 @@ export default function AdminPage() {
   const [streams, setStreams] = useState<Stream[]>([]);
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
-  const [showStreamForm, setShowStreamForm] = useState(false);
   const [expandedStream, setExpandedStream] = useState<string | null>(null);
   const [addVersionStreamId, setAddVersionStreamId] = useState<string | null>(null);
   const [editVersionId, setEditVersionId] = useState<string | null>(null);
@@ -621,11 +518,6 @@ export default function AdminPage() {
     router.push('/admin/login');
   };
 
-  const handleStreamCreated = (stream: Stream) => {
-    setStreams(prev => [...prev, stream]);
-    setShowStreamForm(false);
-    setExpandedStream(stream.id);
-  };
 
   const handleVersionCreated = async () => {
     await fetchData();
@@ -717,14 +609,6 @@ export default function AdminPage() {
               <Clock size={16} />
               標記時間
             </button>
-            <button
-              data-testid="discover-nav-button"
-              onClick={() => router.push('/admin/discover')}
-              className="px-4 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90 flex items-center gap-2 text-sm"
-            >
-              <Plus size={16} />
-              匯入歌曲
-            </button>
             <a
               href="/"
               className="text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
@@ -786,24 +670,15 @@ export default function AdminPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-700">直播場次管理</h2>
               <button
-                onClick={() => setShowStreamForm(!showStreamForm)}
+                onClick={() => router.push('/admin/discover')}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-400 to-blue-400 text-white font-medium text-sm shadow-md hover:brightness-105 transition-all"
                 data-testid="add-stream-button"
               >
                 <Plus className="w-4 h-4" />
-                新增直播場次
+                匯入歌曲
               </button>
             </div>
 
-            {showStreamForm && (
-              <div className="bg-white/90 rounded-2xl shadow-lg border border-white/60 p-6 mb-4" data-testid="stream-form-container">
-                <h3 className="font-semibold text-slate-700 mb-4">新增直播場次</h3>
-                <StreamForm
-                  onSuccess={handleStreamCreated}
-                  onCancel={() => setShowStreamForm(false)}
-                />
-              </div>
-            )}
 
             {streams.length === 0 ? (
               <div className="text-center py-16 text-slate-400">
