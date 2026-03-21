@@ -39,18 +39,6 @@ interface ExtractedSong {
 
 type Step = 'input' | 'extracting' | 'review' | 'importing' | 'done';
 
-interface NovaStatus {
-  exists: boolean;
-  hasApproved?: boolean;
-  pendingCount?: number;
-  rejectedCount?: number;
-}
-
-const CHANNEL_TO_NOVA_SLUG: Record<string, string> = {
-  'UCjv4bfP_67WLuPheS-Z8Ekg': 'mizuki',
-  'UCZTw6BZCzfjCarjJMRpU0Wg': 'kirali',
-};
-
 function DiscoverPageInner() {
   const router = useRouter();
   const [authenticated, setAuthenticated] = useState(false);
@@ -74,7 +62,6 @@ function DiscoverPageInner() {
   const [streamerProfile, setStreamerProfile] = useState<any>(null);
   const [showStreamerConfirm, setShowStreamerConfirm] = useState(false);
   const [channelId, setChannelId] = useState<string>('');
-  const [novaStatus, setNovaStatus] = useState<NovaStatus | null>(null);
 
   // Preview player state
   const [activeSongIndex, setActiveSongIndex] = useState<number | null>(null);
@@ -345,17 +332,6 @@ function DiscoverPageInner() {
 
       setVideoInfo(data);
       setChannelId(info.channelId);
-      setNovaStatus(null);
-
-      // Check Nova submission status for known streamers
-      const novaSlug = CHANNEL_TO_NOVA_SLUG[info.channelId];
-      if (novaSlug) {
-        const youtubeUrl = `https://www.youtube.com/watch?v=${info.videoId}`;
-        fetch(`https://nova.oshi.tw/vod/api/check?streamer_slug=${novaSlug}&url=${encodeURIComponent(youtubeUrl)}`)
-          .then(r => r.ok ? r.json() : null)
-          .then(json => { if (json) setNovaStatus(json); })
-          .catch(() => {});
-      }
 
       if (data.isNewStreamer && info.channelId) {
         const profile = await fetchChannelInfo(info.channelId);
@@ -1069,27 +1045,18 @@ function DiscoverPageInner() {
                         <span className="text-sm font-medium text-gray-600">歌單文字</span>
                         <div className="flex items-center gap-2">
                           {videoInfo && !videoInfo.videoId.startsWith('manual') && (
-                            <div className="flex items-center gap-2">
-                              {novaStatus && (() => {
-                                if (novaStatus.hasApproved) return <span className="px-2 py-0.5 text-xs rounded-full bg-orange-100 border border-orange-200 text-orange-700">✓ Nova 已通過</span>;
-                                if ((novaStatus.pendingCount ?? 0) > 0) return <span className="px-2 py-0.5 text-xs rounded-full bg-blue-100 border border-blue-200 text-blue-700">⏳ Nova 待審核 ({novaStatus.pendingCount})</span>;
-                                if ((novaStatus.rejectedCount ?? 0) > 0) return <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 border border-red-200 text-red-700">✗ Nova 曾被拒</span>;
-                                if (novaStatus.exists === false) return <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 border border-green-200 text-green-700">● 尚未投稿 Nova</span>;
-                                return null;
-                              })()}
-                              <button
-                                data-testid="export-to-nova-button"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(novaExportText);
-                                  window.open('https://nova.oshi.tw/vod', '_blank');
-                                  setShowNovaHelper(true);
-                                  setNovaCopiedField(null);
-                                }}
-                                className="flex items-center gap-1.5 px-3 py-1 text-sm rounded-lg bg-violet-100 border border-violet-200 hover:bg-violet-200 text-violet-700 transition-colors"
-                              >
-                                ↗ 匯出到 Nova
-                              </button>
-                            </div>
+                            <button
+                              data-testid="export-to-nova-button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(novaExportText);
+                                window.open('https://nova.oshi.tw/vod', '_blank');
+                                setShowNovaHelper(true);
+                                setNovaCopiedField(null);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1 text-sm rounded-lg bg-violet-100 border border-violet-200 hover:bg-violet-200 text-violet-700 transition-colors"
+                            >
+                              ↗ 匯出到 Nova
+                            </button>
                           )}
                           <button
                             data-testid="copy-song-list-button"
