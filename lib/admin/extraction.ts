@@ -129,6 +129,9 @@ export function parseSongLine(line: string): SongLineResult | null {
   line = line.trim();
   if (!line) return null;
 
+  // Skip tree sub-entries (└, ├, etc.) — these are alternate/previous versions, not main songs
+  if (/^[\u2514\u251C\u2502\u2510\u250C]/.test(line)) return null;
+
   // Strip leading box-drawing / tree-formatting characters
   line = line.replace(/^[\u2500-\u257F\s]+/, '');
   if (!line) return null;

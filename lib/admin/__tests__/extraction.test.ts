@@ -69,13 +69,9 @@ describe('parseSongLine', () => {
     });
   });
 
-  it('strips box-drawing characters', () => {
-    const result = parseSongLine('├── 4:23 誰 / 李友廷');
-    expect(result).toEqual({
-      startSeconds: 263,
-      songName: '誰',
-      artist: '李友廷',
-    });
+  it('skips tree sub-entries (└, ├) — alternate versions, not main songs', () => {
+    expect(parseSongLine('└ 4:23 誰 / 李友廷')).toBeNull();
+    expect(parseSongLine('├── 4:23 誰 / 李友廷')).toBeNull();
   });
 
   it('parses range end timestamp', () => {
