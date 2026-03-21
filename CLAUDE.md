@@ -22,8 +22,9 @@ app/
 ├── auth/page.tsx             Fan auth placeholder
 ├── admin/
 │   ├── login/page.tsx        Admin login (localStorage password check)
-│   ├── page.tsx              Admin dashboard — streams/songs CRUD (匯入歌曲 button navigates to /admin/discover)
-│   ├── discover/page.tsx     Import new streams from YouTube URL (with embedded preview player)
+│   ├── page.tsx              Admin dashboard — streams/songs CRUD; "新增直播場次" navigates to /admin/discover; "瀏覽頻道" navigates to /admin/channel
+│   ├── discover/page.tsx     Import new streams from YouTube URL (with embedded preview player); reads ?url= param on mount to auto-fill and trigger fetch
+│   ├── channel/page.tsx      Channel browser — paste YouTube channel URL, auto-fetch karaoke streams, click to open discover
 │   ├── stamp/page.tsx        Timestamp marking UI for performances
 │   ├── metadata/page.tsx     View metadata coverage (read-only, CLI for fetching)
 │   └── deploy/page.tsx       Info page — explains Supabase is live, no deploy needed
