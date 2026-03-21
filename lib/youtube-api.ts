@@ -123,7 +123,7 @@ export const KARAOKE_KEYWORDS = [
   // Japanese
   '歌回', '歌枠', 'カラオケ', '歌ってみた', '歌配信',
   // Chinese
-  '卡拉OK', '唱歌', '翻唱',
+  '卡拉OK', '唱歌', '翻唱', '歌雜',
   // English (only 'karaoke' to avoid false positives)
   'karaoke',
 ];
