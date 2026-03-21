@@ -165,6 +165,17 @@ describe('extractChannelInput', () => {
     );
   });
 
+  it('parses /channel/UC... URL with ?si= suffix', () => {
+    expect(extractChannelInput('https://youtube.com/channel/UC3ZTQ8VZVCpwLHjFKSFe5Uw?si=4dcYLkosArNbSeck')).toEqual(
+      { type: 'id', value: 'UC3ZTQ8VZVCpwLHjFKSFe5Uw' }
+    );
+  });
+
+  it('parses URL-encoded CJK handle', () => {
+    const result = extractChannelInput('https://www.youtube.com/@%E6%A3%AE%E6%A3%AE%E9%88%B4%E8%98%ADLilyLinglan');
+    expect(result).toEqual({ type: 'handle', value: '森森鈴蘭LilyLinglan' });
+  });
+
   it('returns null for unrecognized URL', () => {
     expect(extractChannelInput('https://youtube.com/watch?v=abc')).toBeNull();
     expect(extractChannelInput('not a url')).toBeNull();
