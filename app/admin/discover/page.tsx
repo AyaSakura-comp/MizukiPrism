@@ -46,6 +46,8 @@ export default function DiscoverPage() {
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [songs, setSongs] = useState<ExtractedSong[]>([]);
   const [copiedSongList, setCopiedSongList] = useState(false);
+  const [showNovaHelper, setShowNovaHelper] = useState(false);
+  const [novaCopiedField, setNovaCopiedField] = useState<string | null>(null);
   const [extractionSource, setExtractionSource] = useState<string | null>(null);
   const [commentAuthor, setCommentAuthor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +85,16 @@ export default function DiscoverPage() {
       const end = song.endSeconds != null ? ` ~ ${formatTime(song.endSeconds)}` : '';
       const artist = song.artist ? ` / ${song.artist}` : '';
       return `${idx}. ${start}${end} ${song.songName}${artist}`;
+    }).join('\n');
+  }, [songs]);
+
+  // Nova export format (no index number)
+  const novaExportText = useMemo(() => {
+    return songs.map((song) => {
+      const start = formatTime(song.startSeconds ?? 0);
+      const end = song.endSeconds != null ? ` ~ ${formatTime(song.endSeconds)}` : '';
+      const artist = song.artist ? ` / ${song.artist}` : '';
+      return `${start}${end} ${song.songName}${artist}`;
     }).join('\n');
   }, [songs]);
 
@@ -907,20 +919,80 @@ export default function DiscoverPage() {
                     <div className="mt-4 rounded-lg border border-white/60 bg-white/50 p-4" data-testid="song-list-copy-block">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-gray-600">歌單文字</span>
-                        <button
-                          data-testid="copy-song-list-button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(songListText);
-                            setCopiedSongList(true);
-                            setTimeout(() => setCopiedSongList(false), 2000);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1 text-sm rounded-lg bg-white/80 border border-white/60 hover:bg-white text-gray-600 hover:text-gray-900 transition-colors"
-                        >
-                          {copiedSongList ? <Check size={14} className="text-green-500" /> : <ClipboardCopy size={14} />}
-                          {copiedSongList ? '已複製！' : '複製'}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {videoInfo && !videoInfo.videoId.startsWith('manual') && (
+                            <button
+                              data-testid="export-to-nova-button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(novaExportText);
+                                window.open('https://nova.oshi.tw/vod', '_blank');
+                                setShowNovaHelper(true);
+                                setNovaCopiedField(null);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1 text-sm rounded-lg bg-violet-100 border border-violet-200 hover:bg-violet-200 text-violet-700 transition-colors"
+                            >
+                              ↗ 匯出到 Nova
+                            </button>
+                          )}
+                          <button
+                            data-testid="copy-song-list-button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(songListText);
+                              setCopiedSongList(true);
+                              setTimeout(() => setCopiedSongList(false), 2000);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1 text-sm rounded-lg bg-white/80 border border-white/60 hover:bg-white text-gray-600 hover:text-gray-900 transition-colors"
+                          >
+                            {copiedSongList ? <Check size={14} className="text-green-500" /> : <ClipboardCopy size={14} />}
+                            {copiedSongList ? '已複製！' : '複製'}
+                          </button>
+                        </div>
                       </div>
                       <pre className="text-sm text-gray-500 whitespace-pre-wrap font-mono leading-relaxed">{songListText}</pre>
+
+                      {/* Nova export helper */}
+                      {showNovaHelper && videoInfo && (
+                        <div className="mt-3 p-3 rounded-lg bg-violet-50 border border-violet-200 text-sm space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-violet-700">Nova 匯出助手</span>
+                            <button onClick={() => setShowNovaHelper(false)} className="text-violet-400 hover:text-violet-600 text-xs">✕ 關閉</button>
+                          </div>
+                          <p className="text-violet-600 text-xs">歌單已複製到剪貼簿，請在 Nova 貼上。以下欄位點擊即可複製：</p>
+                          <div className="space-y-1.5">
+                            {[
+                              { label: 'YouTube URL', value: `https://www.youtube.com/watch?v=${videoInfo.videoId}` },
+                              { label: '直播標題', value: videoInfo.title },
+                            ].map(({ label, value }) => (
+                              <div key={label} className="flex items-center gap-2">
+                                <span className="text-violet-500 w-20 shrink-0 text-xs">{label}</span>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(value);
+                                    setNovaCopiedField(label);
+                                    setTimeout(() => setNovaCopiedField(null), 2000);
+                                  }}
+                                  className="flex-1 text-left px-2 py-1 rounded bg-white/80 border border-violet-200 font-mono text-xs text-gray-700 hover:bg-violet-100 truncate"
+                                >
+                                  {novaCopiedField === label ? '✓ 已複製！' : value}
+                                </button>
+                              </div>
+                            ))}
+                            <div className="flex items-center gap-2">
+                              <span className="text-violet-500 w-20 shrink-0 text-xs">歌單時間戳</span>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(novaExportText);
+                                  setNovaCopiedField('songs');
+                                  setTimeout(() => setNovaCopiedField(null), 2000);
+                                }}
+                                className="flex-1 text-left px-2 py-1 rounded bg-white/80 border border-violet-200 text-xs text-gray-700 hover:bg-violet-100"
+                              >
+                                {novaCopiedField === 'songs' ? '✓ 已複製！' : `${songs.length} 首歌 (點擊再次複製)`}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-6 flex gap-3">
