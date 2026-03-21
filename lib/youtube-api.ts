@@ -209,7 +209,29 @@ export async function fetchChannelUploads(
     }
   }
 
+  // Step 3: Filter to live streams only via liveStreamingDetails
+  const liveVideoIds = new Set<string>();
+  for (let i = 0; i < videos.length; i += 50) {
+    const batch = videos.slice(i, i + 50);
+    const ids = batch.map(v => v.videoId).join(',');
+    try {
+      const vUrl = `${YT_BASE}/videos?part=liveStreamingDetails&id=${ids}&key=${GOOGLE_API_KEY}`;
+      const vRes = await fetch(vUrl);
+      if (!vRes.ok) { partialError = `liveStreamingDetails API error: ${vRes.status}`; break; }
+      const vData = await vRes.json();
+      for (const vi of (vData.items || [])) {
+        if (vi.liveStreamingDetails) liveVideoIds.add(vi.id);
+      }
+    } catch (err) {
+      partialError = String(err);
+      break;
+    }
+  }
+  const liveVideos = liveVideoIds.size > 0
+    ? videos.filter(v => liveVideoIds.has(v.videoId))
+    : videos; // fallback: keep all if the API call failed entirely
+
   // Sort newest-first
-  videos.sort((a, b) => b.date.localeCompare(a.date));
-  return { channel, videos, ...(partialError ? { partialError } : {}) };
+  liveVideos.sort((a, b) => b.date.localeCompare(a.date));
+  return { channel, videos: liveVideos, ...(partialError ? { partialError } : {}) };
 }
