@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, ArrowLeft } from 'lucide-react';
 import { isAuthenticated } from '@/lib/supabase-admin';
 import { loadStreams, loadStreamers } from '@/lib/supabase-data';
@@ -12,8 +12,9 @@ import {
   ChannelVideo,
 } from '@/lib/youtube-api';
 
-export default function ChannelBrowserPage() {
+function ChannelBrowserInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [authenticated, setAuthenticated] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,7 +34,27 @@ export default function ChannelBrowserPage() {
       setImportedVideoIds(new Set(streams.map(s => s.videoId)));
     }).catch(() => {/* non-critical */});
     loadStreamers().then(setStreamers).catch(() => {/* non-critical */});
-  }, [router]);
+    // Auto-load channel if ?url= param present (e.g. navigating back from discover)
+    const urlParam = searchParams.get('url') ? decodeURIComponent(searchParams.get('url')!) : null;
+    if (urlParam) {
+      setUrlInput(urlParam);
+      setSelectedFromCards(true);
+      const input = extractChannelInput(urlParam.trim());
+      if (input) {
+        setLoading(true);
+        fetchChannelUploads(input, page => setLoadingPage(page)).then(result => {
+          setChannel(result.channel);
+          setVideos(result.videos);
+          if (result.partialError) setPartialError(`部分載入失敗：${result.partialError}`);
+        }).catch(err => {
+          setError(err instanceof Error ? err.message : String(err));
+        }).finally(() => {
+          setLoading(false);
+          setLoadingPage(0);
+        });
+      }
+    }
+  }, [router, searchParams]);
 
   async function handleSearch() {
     setError(null);
@@ -233,7 +254,7 @@ export default function ChannelBrowserPage() {
                       </span>
                     )}
                     <button
-                      onClick={() => router.push(`/admin/discover?url=${encodeURIComponent(youtubeUrl)}`)}
+                      onClick={() => router.push(`/admin/discover?url=${encodeURIComponent(youtubeUrl)}&from=channel&channelUrl=${encodeURIComponent(urlInput)}`)}
                       className="px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90"
                       data-testid={`import-btn-${video.videoId}`}
                     >
@@ -247,5 +268,13 @@ export default function ChannelBrowserPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function ChannelBrowserPage() {
+  return (
+    <Suspense>
+      <ChannelBrowserInner />
+    </Suspense>
   );
 }

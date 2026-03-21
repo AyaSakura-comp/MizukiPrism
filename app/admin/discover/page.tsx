@@ -126,6 +126,11 @@ function DiscoverPageInner() {
 
   const searchParams = useSearchParams();
   const urlParam = searchParams.get('url') ? decodeURIComponent(searchParams.get('url')!) : null;
+  const fromChannel = searchParams.get('from') === 'channel';
+  const channelUrlParam = searchParams.get('channelUrl') ? decodeURIComponent(searchParams.get('channelUrl')!) : null;
+  const backHref = fromChannel && channelUrlParam
+    ? `/admin/channel?url=${encodeURIComponent(channelUrlParam)}`
+    : '/admin';
 
   // Auth check
   useEffect(() => {
@@ -625,7 +630,7 @@ function DiscoverPageInner() {
       <div className={`${step === 'review' && videoInfo && !videoInfo.videoId.startsWith('manual') ? 'max-w-7xl' : 'max-w-4xl'} mx-auto space-y-4`}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-2">
-          <button onClick={() => router.push('/admin')} className="text-gray-500 hover:text-gray-700">
+          <button onClick={() => router.push(backHref)} className="text-gray-500 hover:text-gray-700">
             <ArrowLeft size={20} />
           </button>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-400 to-blue-400 bg-clip-text text-transparent">
@@ -1163,10 +1168,10 @@ function DiscoverPageInner() {
                 匯入另一個直播
               </button>
               <button
-                onClick={() => router.push('/admin')}
+                onClick={() => router.push(backHref)}
                 className="px-4 py-2 text-gray-500 hover:text-gray-700"
               >
-                返回管理面板
+                {fromChannel ? '返回歌回列表' : '返回管理面板'}
               </button>
             </div>
           </div>
