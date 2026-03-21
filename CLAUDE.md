@@ -180,7 +180,7 @@ Player card has:
 
 Player is initialized by polling `window.YT?.Player` (avoids React state batching race). Uses a `useRef` container with a dynamically-appended child div so React re-renders don't detach the YT iframe.
 
-**Live end-timestamp sync**: While the player is playing, the active song's end-timestamp input updates every 500ms to match the current player time. `activeSongIndexRef` (a ref mirroring `activeSongIndex` state) is used inside the interval to avoid stale closure.
+**Live end-timestamp sync**: While the player is playing, the active song's end-timestamp input updates every 500ms to match the current player time. `activeSongIndexRef` (a ref mirroring `activeSongIndex` state) is used inside the interval to avoid stale closure. Locked songs are skipped by the interval.
 
 End-timestamp input keyboard workflow (while focused):
 - **Type timestamp** → debounced 400ms seek; player jumps to typed time
@@ -188,8 +188,20 @@ End-timestamp input keyboard workflow (while focused):
 - **←/→** → nudge ±1s; input value syncs back after 80ms
 - **Shift+←/→** → nudge ±5s; input value syncs back
 - **Space** → play/pause (no space typed into input)
-- **↺ button (還原)** → restores API-detected (iTunes/MusicBrainz) end-timestamp AND clears `activeSongIndex` so live-sync stops overwriting the restored value
+- **↺ button (還原)** → restores API-detected (iTunes/MusicBrainz) end-timestamp AND clears `activeSongIndex` so live-sync stops overwriting the restored value; also clears lock
 - **Focus** → seeks player to existing end time
+
+**End-timestamp lock** (`lockedEndTimestamps: Set<number>` + `lockedEndTimestampsRef`):
+- 🔒/🔓 button next to end-timestamp input — toggles lock per song
+- Locked songs are skipped by live-sync interval
+- **Auto-lock on pause**: when player transitions playing→paused, active song auto-locks
+- **Auto-unlock on play**: when player transitions paused→playing, active song auto-unlocks
+- Lock clears when `resetSong()` is called; indices shift correctly when a song is deleted
+
+**Visual change indicators**:
+- End-timestamp input turns **pink** when value differs from iTunes/MusicBrainz detected original
+- ↺ reset button turns **pink** when end differs from original, signalling it can restore the detected value
+- `originalSongsRef` stores the pre-enrichment snapshot; must be kept in sync with `songs` array (filtered in `removeSong` alongside `setSongs`)
 
 Mobile song rows use a two-line layout (`flex-col sm:flex-row`): timestamps + badge on line 1, song name / artist on line 2.
 
@@ -216,9 +228,25 @@ Each song in the review table shows **provenance badges**:
 
 Both `durationSource` and `artistSource` are UI-only (not persisted to Supabase). Badge colors use `violet` not `purple` because Tailwind's purple palette is overridden by custom CSS variables in `tailwind.config.ts`.
 
+### Channel Browser (`/admin/channel`)
+
+- Paste any YouTube channel URL (supports `/channel/UC...`, `/@handle`, `?si=` suffix, URL-encoded CJK handles)
+- `extractChannelInput()` in `lib/youtube-api.ts` parses the URL into `{ type: 'id' | 'handle', value }` — decodes pathname with `decodeURIComponent` before matching
+- `fetchChannelUploads()` fetches uploads playlist via YouTube Data API v3, filters by `KARAOKE_KEYWORDS` (JP/ZH/EN), sorts newest-first, supports pagination with progress callback
+- Shows existing streamers as **avatar cards** below the URL input — clicking auto-fills the URL and triggers fetch; a "← 返回" button appears in channel header to go back to cards
+- Each stream row shows thumbnail, title, date, 已匯入 badge (if already in DB), and 匯入 button
+- Import button navigates to `/admin/discover?url=<encodeURIComponent(youtubeUrl)>` — discover page reads `?url=` on mount and auto-triggers fetch
+- New streamers: discover page detects `isNewStreamer: true`, fetches channel profile, shows confirmation dialog before calling `saveStreamer()`
+- E2E tests: `tests/channel-browser.spec.ts`
+
 ### YouTube Comment Parsing
 
 YouTube Data API v3 returns `textDisplay` in HTML format — timestamps are inside `<a href="...&t=684">0:11:24</a>` tags, lines separated by `<br>`. The `stripHtml()` function in `discover/page.tsx` converts `<br>` to `\n` and strips all tags before passing to `parseTextToSongs`.
+
+**Comment format handling in `lib/admin/extraction.ts`**:
+- `stripNonSonglistSections()` truncates text at 【時間軸】/【Timestamp】/etc. section headers before parsing — prevents chat highlight lines from being misread as songs
+- `parseSongLine()` strips mathematical bold/fullwidth digit prefixes (𝟎𝟏., 𝟎𝟐.) common in CJK song lists
+- `parseSongLine()` skips lines starting with `└`, `├`, `│` (tree sub-entries = alternate/previous versions, not main songs)
 
 ### Player
 
@@ -313,7 +341,7 @@ If `basePath: "/MizukiPrism"` is set without the `isProd` guard, all local dev r
 `tailwind.config.ts` defines custom `purple` as `var(--accent-purple)`, which replaces the entire default purple scale. `bg-purple-200`, `text-purple-800` etc. won't work — use `violet` instead for standard Tailwind purple shades.
 
 ### 10. `findCandidateComment` can pick chat logs instead of song lists
-Some YouTube streams have timestamped chat log comments (e.g., 129 lines of viewer messages). `findCandidateComment` treats these as song lists because they contain timestamps. This causes extremely long duration enrichment times (129 × 3s = ~6.5 min). The parser needs better heuristics to distinguish song lists from chat logs.
+Some YouTube streams have timestamped chat log comments (e.g., 129 lines of viewer messages). `findCandidateComment` treats these as song lists because they contain timestamps. This causes extremely long duration enrichment times (129 × 3s = ~6.5 min). Partially mitigated: `stripNonSonglistSections()` truncates at 【時間軸】/【Timestamp】 headers when both sections appear in the same comment. Remaining gap: pure chat-log comments (no section header, no `Song / Artist` separator) are still misidentified.
 
 ### 11. Admin auth is not secure
 The admin password (`mizuki-admin`) is hardcoded in `lib/supabase-admin.ts` and visible in the JS bundle. Anyone can read it from the built JS. This is acceptable because the Supabase anon key allows the same writes anyway (RLS disabled). Do not store genuinely sensitive data or use this auth pattern for anything beyond casual protection.
@@ -332,6 +360,7 @@ Playwright tests live in `tests/*.spec.ts`. Key test files:
 - `tests/discover-itunes-duration.spec.ts` — iTunes duration badges: manual paste (none badges) + YouTube URL (iTunes/MusicBrainz badges)
 - `tests/discover-preview-player.spec.ts` — 9 tests for the discover page YouTube preview player (layout, iframe load, active row, end-timestamp focus/type/blur/keyboard)
 - `tests/discover-reset-restores-api-timestamp.spec.ts` — verifies reset button restores iTunes/MusicBrainz timestamp after live-sync overwrites it
+- `tests/channel-browser.spec.ts` — 3 tests: fetch streams + navigate to discover, streamer card click auto-loads, invalid URL error
 - `tests/core-001.spec.ts` — core fan-facing page assertions
 
 ### E2E Video Recording & Verification Flow
