@@ -1,8 +1,8 @@
 // app/admin/discover/page.tsx
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle, Play, Pause, RotateCcw, ClipboardCopy } from 'lucide-react';
 import { fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '@/lib/youtube-api';
 import { parseTextToSongs, findCandidateComment, secondsToTimestamp } from '@/lib/admin/extraction';
@@ -38,7 +38,7 @@ interface ExtractedSong {
 
 type Step = 'input' | 'extracting' | 'review' | 'importing' | 'done';
 
-export default function DiscoverPage() {
+function DiscoverPageInner() {
   const router = useRouter();
   const [authenticated, setAuthenticated] = useState(false);
   const [step, setStep] = useState<Step>('input');
@@ -97,6 +97,9 @@ export default function DiscoverPage() {
       return `${start}${end} ${song.songName}${artist}`;
     }).join('\n');
   }, [songs]);
+
+  const searchParams = useSearchParams();
+  const urlParam = searchParams.get('url') ? decodeURIComponent(searchParams.get('url')!) : null;
 
   // Auth check
   useEffect(() => {
@@ -232,11 +235,19 @@ export default function DiscoverPage() {
     return `${m}:${String(sec).padStart(2, '0')}`;
   }
 
+  // Auto-trigger fetch when navigated from channel browser with ?url= param
+  useEffect(() => {
+    if (!authenticated || !urlParam) return;
+    setUrl(urlParam);
+    handleFetchVideo(urlParam);
+  }, [authenticated, urlParam]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Step 1: Fetch video info
-  async function handleFetchVideo() {
+  async function handleFetchVideo(overrideUrl?: string) {
+    const targetUrl = overrideUrl ?? url;
     setError(null);
     try {
-      const videoId = extractVideoId(url);
+      const videoId = extractVideoId(targetUrl);
       if (!videoId) throw new Error('Invalid YouTube URL');
 
       const info = await fetchVideoInfo(videoId);
@@ -569,7 +580,7 @@ export default function DiscoverPage() {
                 />
                 <button
                   data-testid="discover-fetch-button"
-                  onClick={handleFetchVideo}
+                  onClick={() => handleFetchVideo()}
                   className="px-6 py-2 bg-gradient-to-r from-pink-400 to-blue-400 text-white rounded-lg hover:opacity-90 flex items-center gap-2"
                 >
                   <Search size={16} />
@@ -1058,5 +1069,13 @@ export default function DiscoverPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DiscoverPage() {
+  return (
+    <Suspense>
+      <DiscoverPageInner />
+    </Suspense>
   );
 }
