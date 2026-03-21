@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Mic2,
-  LogOut,
   Plus,
   Music2,
   Video,
@@ -13,19 +11,16 @@ import {
   Trash2,
   X,
   Check,
-  Clock,
-  Image as ImageIcon,
-  CloudUpload,
   AlertCircle,
   Loader2,
   Search,
 } from 'lucide-react';
+import AdminHeader from '@/app/admin/components/AdminHeader';
 import { Song, Stream } from '@/lib/types';
 import { secondsToTimestamp } from '@/lib/utils';
 import { loadSongs, loadStreams } from '@/lib/supabase-data';
 import {
   isAuthenticated,
-  logout,
   createPerformance,
   updatePerformance,
   updateSong,
@@ -514,12 +509,6 @@ export default function AdminPage() {
     }
   }, [fetchData, router]);
 
-  const handleLogout = () => {
-    logout();
-    router.push('/admin/login');
-  };
-
-
   const handleVersionCreated = async () => {
     await fetchData();
     setAddVersionStreamId(null);
@@ -579,62 +568,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fff0f5] via-[#f0f8ff] to-[#e6e6fa]">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-white/60 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-tr from-pink-400 to-blue-400 rounded-xl text-white shadow-lg shadow-pink-200">
-              <Mic2 className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500">
-                MizukiPrism
-              </span>
-              <span className="text-slate-500 text-sm ml-2">管理介面</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              data-testid="metadata-nav-button"
-              onClick={() => router.push('/admin/metadata')}
-              className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 flex items-center gap-2 text-sm transition-all"
-            >
-              <ImageIcon size={16} />
-              管理中繼資料
-            </button>
-            <button
-              data-testid="stamp-nav-button"
-              onClick={() => router.push('/admin/stamp')}
-              className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 flex items-center gap-2 text-sm transition-all"
-            >
-              <Clock size={16} />
-              標記時間
-            </button>
-            <a
-              href="/"
-              className="text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
-            >
-              粉絲頁面
-            </a>
-            <button
-              data-testid="deploy-nav-button"
-              onClick={() => router.push('/admin/deploy')}
-              className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2 text-sm transition-all shadow-md"
-            >
-              <CloudUpload size={16} />
-              發布更改
-            </button>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 text-sm text-slate-500 hover:text-red-500 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50"
-              data-testid="logout-button"
-            >
-              <LogOut className="w-4 h-4" />
-              登出
-            </button>
-          </div>
-        </div>
-      </header>
+      <AdminHeader />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {/* Tab Navigation */}
@@ -668,12 +602,12 @@ export default function AdminPage() {
         {/* Streams Tab */}
         {activeTab === 'streams' && (
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <h2 className="text-lg font-semibold text-slate-700">直播場次管理</h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => router.push('/admin/channel')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-pink-300 text-pink-400 font-medium text-sm hover:bg-pink-50 transition-all"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-white border border-pink-300 text-pink-400 font-medium text-sm hover:bg-pink-50 transition-all"
                   data-testid="channel-nav-button"
                 >
                   <Search className="w-4 h-4" />
@@ -681,7 +615,7 @@ export default function AdminPage() {
                 </button>
                 <button
                   onClick={() => router.push('/admin/discover')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-400 to-blue-400 text-white font-medium text-sm shadow-md hover:brightness-105 transition-all"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-pink-400 to-blue-400 text-white font-medium text-sm shadow-md hover:brightness-105 transition-all"
                   data-testid="add-stream-button"
                 >
                   <Plus className="w-4 h-4" />
@@ -713,16 +647,16 @@ export default function AdminPage() {
                       >
                         <button
                           onClick={() => setExpandedStream(isExpanded ? null : stream.id)}
-                          className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
+                          className="w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors gap-3"
                           data-testid={`stream-toggle-${stream.id}`}
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="p-2 bg-pink-50 rounded-xl">
+                          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                            <div className="p-2 bg-pink-50 rounded-xl shrink-0">
                               <Video className="w-4 h-4 text-pink-400" />
                             </div>
-                            <div className="text-left">
-                              <p className="font-semibold text-slate-700">{stream.title}</p>
-                              <p className="text-sm text-slate-400">{stream.date} · {streamPerfs.length} 首歌</p>
+                            <div className="text-left min-w-0">
+                              <p className="font-semibold text-slate-700 text-sm sm:text-base truncate">{stream.title}</p>
+                              <p className="text-xs sm:text-sm text-slate-400">{stream.date} · {streamPerfs.length} 首歌</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -744,7 +678,7 @@ export default function AdminPage() {
                         </button>
 
                         {isExpanded && (
-                          <div className="px-6 pb-6 border-t border-slate-100">
+                          <div className="px-4 sm:px-6 pb-4 sm:pb-6 border-t border-slate-100">
                             {/* Performances list */}
                             {streamPerfs.length > 0 && (
                               <div className="mt-4 space-y-3">

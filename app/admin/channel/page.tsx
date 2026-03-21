@@ -117,9 +117,9 @@ function ChannelBrowserInner() {
     <div className="min-h-screen bg-gradient-to-br from-[#fff0f5] via-[#f0f8ff] to-[#e6e6fa]">
       <AdminHeader />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4 sm:space-y-6">
         {/* URL input */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/60 p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/60 p-4 sm:p-6">
           <label className="block text-sm font-medium text-slate-600 mb-2">YouTube 頻道網址</label>
           <div className="flex gap-3">
             <input
@@ -188,7 +188,7 @@ function ChannelBrowserInner() {
 
         {/* Channel header */}
         {channel && (
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/60 p-4 flex items-center gap-4" data-testid="channel-header">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/60 p-3 sm:p-4 flex items-center gap-3 sm:gap-4" data-testid="channel-header">
             {selectedFromCards && (
               <button
                 onClick={handleBackToCards}
@@ -200,12 +200,12 @@ function ChannelBrowserInner() {
               </button>
             )}
             {channel.avatarUrl && (
-              <img src={channel.avatarUrl} alt={channel.displayName} className="w-14 h-14 rounded-full object-cover" />
+              <img src={channel.avatarUrl} alt={channel.displayName} className="w-10 h-10 sm:w-14 sm:h-14 rounded-full object-cover shrink-0" />
             )}
-            <div>
-              <p className="font-semibold text-slate-800">{channel.displayName}</p>
-              {channel.handle && <p className="text-sm text-slate-500">{channel.handle}</p>}
-              <p className="text-sm text-slate-500 mt-0.5">找到 {videos.length} 部歌回直播</p>
+            <div className="min-w-0">
+              <p className="font-semibold text-slate-800 text-sm sm:text-base truncate">{channel.displayName}</p>
+              {channel.handle && <p className="text-xs sm:text-sm text-slate-500 truncate">{channel.handle}</p>}
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">找到 {videos.length} 部歌回直播</p>
             </div>
           </div>
         )}
@@ -226,21 +226,23 @@ function ChannelBrowserInner() {
               return (
                 <div
                   key={video.videoId}
-                  className="bg-white/80 backdrop-blur-xl rounded-xl shadow-sm border border-white/60 p-4 flex items-center gap-4"
+                  className="bg-white/80 backdrop-blur-xl rounded-xl shadow-sm border border-white/60 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4"
                   data-testid={`channel-stream-${video.videoId}`}
                 >
-                  {video.thumbnailUrl && (
-                    <img
-                      src={video.thumbnailUrl}
-                      alt={video.title}
-                      className="w-24 h-[54px] object-cover rounded-lg shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-slate-800 text-sm truncate">{video.title}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{video.date}</p>
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                    {video.thumbnailUrl && (
+                      <img
+                        src={video.thumbnailUrl}
+                        alt={video.title}
+                        className="w-20 h-[45px] sm:w-24 sm:h-[54px] object-cover rounded-lg shrink-0"
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-slate-800 text-sm truncate">{video.title}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{video.date}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                     {isImported && (
                       <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200">
                         已匯入
