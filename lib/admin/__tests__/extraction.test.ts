@@ -108,7 +108,7 @@ describe('parseTextToSongs', () => {
       songName: '誰',
       artist: '李友廷',
       startSeconds: 263,
-      endSeconds: 506,  // inferred from next song
+      endSeconds: null,  // no inference; iTunes/MusicBrainz enriches later
       suspicious: false,
     });
     expect(songs[2].endSeconds).toBeNull();  // last song
@@ -132,6 +132,36 @@ This is a comment
 
   it('returns empty array for no timestamps', () => {
     expect(parseTextToSongs('no timestamps here')).toEqual([]);
+  });
+
+  it('stops parsing at 【時間軸】 section header', () => {
+    const text = `01. 25:30 I See the Light / Mandy Moore
+02. 41:51 Once Upon a Dream / Lana del Rey
+【時間軸||Timestamp】
+3:55 開始
+4:36 魯尼的頭上有米妮`;
+    const songs = parseTextToSongs(text);
+    expect(songs).toHaveLength(2);
+    expect(songs[0].songName).toContain('I See the Light');
+    expect(songs[1].songName).toContain('Once Upon a Dream');
+  });
+
+  it('strips fullwidth/mathematical bold digit prefix (𝟎𝟏.)', () => {
+    const text = `𝟎𝟏. 25:30 I See the Light / Mandy Moore
+𝟎𝟐. 41:51 Once Upon a Dream / Lana del Rey`;
+    const songs = parseTextToSongs(text);
+    expect(songs).toHaveLength(2);
+    expect(songs[0].songName).toContain('I See the Light');
+  });
+
+  it('stops parsing at 【Timestamp】 section header', () => {
+    const text = `1:00 Song A / Artist A
+2:00 Song B / Artist B
+【Timestamp】
+3:55 some chat moment
+4:00 another chat moment`;
+    const songs = parseTextToSongs(text);
+    expect(songs).toHaveLength(2);
   });
 });
 

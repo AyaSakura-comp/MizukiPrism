@@ -133,6 +133,8 @@ export function parseSongLine(line: string): SongLineResult | null {
   line = line.replace(/^[\u2500-\u257F\s]+/, '');
   if (!line) return null;
 
+  // Strip mathematical bold/fullwidth digit prefixes (𝟎𝟏., 𝟏𝟐., etc.)
+  line = line.replace(/^[\u{1D7CE}-\u{1D7FF}]+\.\s*/u, '');
   // Strip common alphanumeric prefixes: "01. ", "EX. ", "1) ", "#3 "
   line = line.replace(/^(?:[A-Z0-9]+\.\s*|\d+\)\s+|#\d+\s+)/i, '');
 
@@ -181,7 +183,24 @@ export function parseSongLine(line: string): SongLineResult | null {
 // Multi-line text parsing
 // ---------------------------------------------------------------------------
 
+/**
+ * Truncate comment text at the first section-break header that signals
+ * a non-song-list section (chat highlights, timestamps, etc.).
+ * Patterns: 【時間軸...】, 【.*[Tt]imestamp.*】, standalone 時間軸/Timestamp headers.
+ */
+function stripNonSonglistSections(text: string): string {
+  // Match a line that is a section header (in 【】 brackets) containing timestamp-like keywords
+  // but NOT containing song-list keywords
+  const sectionBreakRe = /^[【\[].*(?:時間軸|[Tt]imestamp|留言|章節|章节|チャプター|목차)[^\n]*[】\]]/m;
+  const m = text.match(sectionBreakRe);
+  if (m && m.index !== undefined) {
+    return text.slice(0, m.index).trimEnd();
+  }
+  return text;
+}
+
 export function parseTextToSongs(text: string): ParsedSong[] {
+  text = stripNonSonglistSections(text);
   const rawSongs: SongLineResult[] = [];
   for (const line of text.split(/\r?\n/)) {
     const parsed = parseSongLine(line);
