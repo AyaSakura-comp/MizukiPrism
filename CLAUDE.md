@@ -247,7 +247,9 @@ Both `durationSource` and `artistSource` are UI-only (not persisted to Supabase)
 
 ### Shared Admin Header
 
-`app/admin/components/AdminHeader.tsx` provides a unified sticky nav bar used by the channel browser and discover pages. Contains: MizukiPrism logo (→ /admin), 管理中繼資料 (→ /admin/metadata), 標記時間 (→ /admin/stamp), 粉絲頁面 (→ /), 發布更改 (→ /admin/deploy), 登出 (calls `logout()` + redirect to /admin/login).
+`app/admin/components/AdminHeader.tsx` provides a unified sticky nav bar used by the channel browser and discover pages. Contains: MizukiPrism logo (→ /admin), 中繼資料 (→ /admin/metadata), 標記時間 (→ /admin/stamp), 粉絲頁面 (→ /), 發布更改 (→ /admin/deploy), 登出 (calls `logout()` + redirect to /admin/login).
+
+**Responsive layout**: Desktop (`md+`) shows all nav buttons inline. Mobile (`<md`) collapses to logo + hamburger menu icon (`Menu`/`X` from Lucide) that toggles a vertical dropdown with all nav items. Uses `useState` for menu open/close state; navigating closes the menu automatically.
 
 ### YouTube Comment Parsing
 
