@@ -18,6 +18,7 @@ import {
   CloudUpload,
   AlertCircle,
   Loader2,
+  Search,
 } from 'lucide-react';
 import { Song, Stream } from '@/lib/types';
 import { secondsToTimestamp } from '@/lib/utils';
@@ -669,6 +670,14 @@ export default function AdminPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-700">直播場次管理</h2>
+              <button
+                onClick={() => router.push('/admin/channel')}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 text-sm transition-all"
+                data-testid="channel-nav-button"
+              >
+                <Search className="w-4 h-4" />
+                瀏覽頻道
+              </button>
               <button
                 onClick={() => router.push('/admin/discover')}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-400 to-blue-400 text-white font-medium text-sm shadow-md hover:brightness-105 transition-all"
