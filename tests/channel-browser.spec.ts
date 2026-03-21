@@ -43,6 +43,25 @@ test('channel browser: fetch streams and navigate to discover', async ({ page })
   }
 });
 
+test('channel browser: shows streamer cards and click to load', async ({ page }) => {
+  test.setTimeout(60000);
+
+  await page.goto(`${BASE_URL}/admin/login`);
+  await page.getByTestId('password-input').fill('mizuki-admin');
+  await page.getByTestId('login-button').click();
+  await page.waitForURL('**/admin', { timeout: 10000 });
+
+  await page.goto(`${BASE_URL}/admin/channel`);
+
+  // Streamer cards should appear (loaded from Supabase)
+  const firstCard = page.locator('.grid button').first();
+  await expect(firstCard).toBeVisible({ timeout: 10000 });
+
+  // Click first streamer card — should auto-trigger fetch
+  await firstCard.click();
+  await expect(page.getByTestId('channel-header')).toBeVisible({ timeout: 30000 });
+});
+
 test('channel browser: shows error for invalid URL', async ({ page }) => {
   test.setTimeout(20000);
 
