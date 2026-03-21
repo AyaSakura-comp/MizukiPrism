@@ -11,6 +11,25 @@ export function parseIsoDuration(iso: string): number {
          parseInt(match[3] || '0');
 }
 
+export type ChannelInput =
+  | { type: 'id'; value: string }
+  | { type: 'handle'; value: string };
+
+/** Parse a YouTube channel URL into a channel input descriptor */
+export function extractChannelInput(url: string): ChannelInput | null {
+  try {
+    const u = new URL(url.trim());
+    if (u.hostname !== 'www.youtube.com' && u.hostname !== 'youtube.com') return null;
+    const channelMatch = u.pathname.match(/^\/channel\/(UC[\w-]+)/);
+    if (channelMatch) return { type: 'id', value: channelMatch[1] };
+    const handleMatch = u.pathname.match(/^\/@([\w.-]+)\/?$/);
+    if (handleMatch) return { type: 'handle', value: handleMatch[1] };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export interface VideoInfo {
   videoId: string;
   title: string;

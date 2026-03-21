@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { parseIsoDuration, fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '../../youtube-api';
+import { parseIsoDuration, fetchVideoInfo, fetchVideoComments, fetchChannelInfo, extractChannelInput } from '../../youtube-api';
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -143,5 +143,30 @@ describe('fetchChannelInfo', () => {
       json: async () => ({ items: [] }),
     });
     await expect(fetchChannelInfo('bad-id')).rejects.toThrow('Channel not found');
+  });
+});
+
+describe('extractChannelInput', () => {
+  it('parses /channel/UC... URL', () => {
+    expect(extractChannelInput('https://www.youtube.com/channel/UCjv4bfP_67WLuPheS-Z8Ekg')).toEqual(
+      { type: 'id', value: 'UCjv4bfP_67WLuPheS-Z8Ekg' }
+    );
+  });
+
+  it('parses /@handle URL', () => {
+    expect(extractChannelInput('https://www.youtube.com/@mizukiTW')).toEqual(
+      { type: 'handle', value: 'mizukiTW' }
+    );
+  });
+
+  it('parses /@handle URL with trailing slash', () => {
+    expect(extractChannelInput('https://www.youtube.com/@mizukiTW/')).toEqual(
+      { type: 'handle', value: 'mizukiTW' }
+    );
+  });
+
+  it('returns null for unrecognized URL', () => {
+    expect(extractChannelInput('https://youtube.com/watch?v=abc')).toBeNull();
+    expect(extractChannelInput('not a url')).toBeNull();
   });
 });
