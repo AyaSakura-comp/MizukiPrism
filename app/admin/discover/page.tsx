@@ -74,6 +74,20 @@ function DiscoverPageInner() {
   useEffect(() => { activeSongIndexRef.current = activeSongIndex; }, [activeSongIndex]);
   const [playerCurrentTime, setPlayerCurrentTime] = useState<number>(0);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const prevIsPreviewPlayingRef = useRef(false);
+  // Auto-lock active song on pause, auto-unlock on play
+  useEffect(() => {
+    const wasPlaying = prevIsPreviewPlayingRef.current;
+    prevIsPreviewPlayingRef.current = isPreviewPlaying;
+    if (activeSongIndex === null) return;
+    if (wasPlaying && !isPreviewPlaying) {
+      // playing → paused: lock
+      setLockedEndTimestamps(prev => { const next = new Set(prev); next.add(activeSongIndex); return next; });
+    } else if (!wasPlaying && isPreviewPlaying) {
+      // paused → playing: unlock
+      setLockedEndTimestamps(prev => { const next = new Set(prev); next.delete(activeSongIndex); return next; });
+    }
+  }, [isPreviewPlaying, activeSongIndex]);
   const previewPlayerRef = useRef<any>(null);
   const timeUpdateRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ytPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
