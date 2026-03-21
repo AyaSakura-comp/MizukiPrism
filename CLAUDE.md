@@ -27,7 +27,9 @@ app/
 │   ├── channel/page.tsx      Channel browser — paste YouTube channel URL, auto-fetch karaoke streams, click to open discover
 │   ├── stamp/page.tsx        Timestamp marking UI for performances
 │   ├── metadata/page.tsx     View metadata coverage (read-only, CLI for fetching)
-│   └── deploy/page.tsx       Info page — explains Supabase is live, no deploy needed
+│   ├── deploy/page.tsx       Info page — explains Supabase is live, no deploy needed
+│   └── components/
+│       └── AdminHeader.tsx   Shared sticky nav bar used by admin/discover and admin/channel pages (logo, nav buttons, logout)
 ├── components/
 │   ├── AlbumArt.tsx          Reusable album art with gradient placeholder fallback
 │   ├── MiniPlayer.tsx        Bottom mini player bar
@@ -197,6 +199,7 @@ End-timestamp input keyboard workflow (while focused):
 - **Auto-lock on pause**: when player transitions playing→paused, active song auto-locks
 - **Auto-unlock on play**: when player transitions paused→playing, active song auto-unlocks
 - Lock clears when `resetSong()` is called; indices shift correctly when a song is deleted
+- **Race condition note**: `onStateChange` YouTube event (states 1/3 → playing, 2/0 → paused) is the authoritative source for `isPreviewPlaying`. A `manualToggleTimeRef` 1-second cooldown prevents the polling interval from overriding state immediately after a manual toggle. `seekPreview()` immediately stamps the cooldown and sets `isPreviewPlaying=true` to avoid stale state in headless environments where buffering (state 3) is the first observed state.
 
 **Visual change indicators**:
 - End-timestamp input turns **pink** when value differs from iTunes/MusicBrainz detected original
@@ -235,9 +238,14 @@ Both `durationSource` and `artistSource` are UI-only (not persisted to Supabase)
 - `fetchChannelUploads()` fetches uploads playlist via YouTube Data API v3, filters by `KARAOKE_KEYWORDS` (JP/ZH/EN), sorts newest-first, supports pagination with progress callback
 - Shows existing streamers as **avatar cards** below the URL input — clicking auto-fills the URL and triggers fetch; a "← 返回" button appears in channel header to go back to cards
 - Each stream row shows thumbnail, title, date, 已匯入 badge (if already in DB), and 匯入 button
-- Import button navigates to `/admin/discover?url=<encodeURIComponent(youtubeUrl)>` — discover page reads `?url=` on mount and auto-triggers fetch
+- Import button navigates to `/admin/discover?url=<youtubeUrl>&from=channel&channelUrl=<channelUrl>` — discover page reads `?url=` on mount and auto-triggers fetch
+- **Back navigation**: discover page reads `?from=channel&channelUrl=` params; back button returns to `/admin/channel?url=<channelUrl>` which re-triggers channel fetch automatically
 - New streamers: discover page detects `isNewStreamer: true`, fetches channel profile, shows confirmation dialog before calling `saveStreamer()`
 - E2E tests: `tests/channel-browser.spec.ts`
+
+### Shared Admin Header
+
+`app/admin/components/AdminHeader.tsx` provides a unified sticky nav bar used by the channel browser and discover pages. Contains: MizukiPrism logo (→ /admin), 管理中繼資料 (→ /admin/metadata), 標記時間 (→ /admin/stamp), 粉絲頁面 (→ /), 發布更改 (→ /admin/deploy), 登出 (calls `logout()` + redirect to /admin/login).
 
 ### YouTube Comment Parsing
 
