@@ -673,7 +673,7 @@ export default function AdminPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => router.push('/admin/channel')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-400 to-blue-400 text-white font-medium text-sm shadow-md hover:brightness-105 transition-all"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-pink-300 text-pink-400 font-medium text-sm hover:bg-pink-50 transition-all"
                   data-testid="channel-nav-button"
                 >
                   <Search className="w-4 h-4" />
