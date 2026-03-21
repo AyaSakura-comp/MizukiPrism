@@ -208,7 +208,7 @@ export async function fetchChannelUploads(
     }
   }
 
-  // Sort oldest-first
-  videos.sort((a, b) => a.date.localeCompare(b.date));
+  // Sort newest-first
+  videos.sort((a, b) => b.date.localeCompare(a.date));
   return { channel, videos, ...(partialError ? { partialError } : {}) };
 }

@@ -228,8 +228,8 @@ describe('fetchChannelUploads', () => {
     const result = await fetchChannelUploads({ type: 'id', value: 'UCtest' }, onProgress);
 
     expect(result.videos).toHaveLength(2);
-    expect(result.videos[0].title).toBe('秋日歌回 #3');
-    expect(result.videos[1].title).toBe('【カラオケ】夏夜');
+    expect(result.videos[0].title).toBe('【カラオケ】夏夜');
+    expect(result.videos[1].title).toBe('秋日歌回 #3');
     expect(result.channel.displayName).toBe('TestChannel');
   });
 
