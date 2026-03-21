@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle, Play, Pause, RotateCcw, ClipboardCopy } from 'lucide-react';
+import { ArrowLeft, Search, Download, Check, Trash2, AlertCircle, Play, Pause, RotateCcw, ClipboardCopy, Lock, LockOpen } from 'lucide-react';
 import { fetchVideoInfo, fetchVideoComments, fetchChannelInfo } from '@/lib/youtube-api';
 import { parseTextToSongs, findCandidateComment, secondsToTimestamp } from '@/lib/admin/extraction';
 import { isAuthenticated, importStreamWithSongs, saveStreamer, fetchItunesSongInfo, fetchMusicBrainzSongInfo } from '@/lib/supabase-admin';
@@ -67,6 +67,9 @@ function DiscoverPageInner() {
   const [playerReloadKey, setPlayerReloadKey] = useState(0);
   const activeSongIndexRef = useRef<number | null>(null);
   const originalSongsRef = useRef<ExtractedSong[]>([]);
+  const [lockedEndTimestamps, setLockedEndTimestamps] = useState<Set<number>>(new Set());
+  const lockedEndTimestampsRef = useRef<Set<number>>(new Set());
+  useEffect(() => { lockedEndTimestampsRef.current = lockedEndTimestamps; }, [lockedEndTimestamps]);
   // Keep ref in sync so the player interval can read it without stale closure
   useEffect(() => { activeSongIndexRef.current = activeSongIndex; }, [activeSongIndex]);
   const [playerCurrentTime, setPlayerCurrentTime] = useState<number>(0);
@@ -164,9 +167,9 @@ function DiscoverPageInner() {
                 const state = previewPlayerRef.current.getPlayerState?.();
                 const playing = state === 1;
                 setIsPreviewPlaying(playing);
-                // Continuously sync active song's end-timestamp while playing
+                // Continuously sync active song's end-timestamp while playing (skip locked songs)
                 const idx = activeSongIndexRef.current;
-                if (playing && idx !== null) {
+                if (playing && idx !== null && !lockedEndTimestampsRef.current.has(idx)) {
                   const ts = secondsToTimestamp(Math.round(t));
                   setSongs(prev => prev.map((s, i) => i === idx ? { ...s, endTimestamp: ts, endSeconds: Math.round(t) } : s));
                 }
@@ -495,9 +498,23 @@ function DiscoverPageInner() {
     );
   }
 
+  function toggleLockEndTimestamp(index: number) {
+    setLockedEndTimestamps(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
+    });
+  }
+
   function removeSong(index: number) {
     setSongs((prev) => prev.filter((_, i) => i !== index));
     originalSongsRef.current = originalSongsRef.current.filter((_, i) => i !== index);
+    // Shift locked indices
+    setLockedEndTimestamps(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => { if (idx < index) next.add(idx); else if (idx > index) next.add(idx - 1); });
+      return next;
+    });
     // If active song shifts down due to removal, adjust index
     if (activeSongIndex !== null) {
       if (activeSongIndex === index) {
@@ -519,6 +536,8 @@ function DiscoverPageInner() {
         setActiveSongIndex(null);
         activeSongIndexRef.current = null;
       }
+      // Clear lock when resetting
+      setLockedEndTimestamps(prev => { const next = new Set(prev); next.delete(index); return next; });
     }
   }
 
@@ -863,55 +882,70 @@ function DiscoverPageInner() {
                               {song.startTimestamp}
                             </button>
                             <span className="text-gray-400 text-sm shrink-0">-</span>
-                            <input
-                              data-testid={`end-timestamp-input-${i}`}
-                              value={song.endTimestamp || ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                updateSong(i, 'endTimestamp', val);
-                                // Debounced seek: parse typed timestamp and seek player
-                                if (seekDebounceRef.current) clearTimeout(seekDebounceRef.current);
-                                seekDebounceRef.current = setTimeout(() => {
-                                  if (!previewPlayerRef.current) return;
-                                  const parts = val.trim().split(':').map(Number);
-                                  let secs: number | null = null;
-                                  if (parts.length === 2 && parts.every(n => !isNaN(n))) secs = parts[0] * 60 + parts[1];
-                                  else if (parts.length === 3 && parts.every(n => !isNaN(n))) secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
-                                  if (secs !== null) previewPlayerRef.current.seekTo(secs, true);
-                                }, 400);
-                              }}
-                              onFocus={() => {
-                                setActiveSongIndex(i);
-                                if (song.endSeconds !== null && previewPlayerRef.current) {
-                                  previewPlayerRef.current.seekTo(song.endSeconds, true);
-                                }
-                              }}
-                              onBlur={() => {
-                                // Cancel any pending debounced seek on blur
-                                if (seekDebounceRef.current) { clearTimeout(seekDebounceRef.current); seekDebounceRef.current = null; }
-                              }}
-                              onKeyDown={(e) => {
-                                if (!previewPlayerRef.current) return;
-                                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-                                  e.preventDefault();
-                                  const delta = e.key === 'ArrowRight'
-                                    ? (e.shiftKey ? 5 : 1)
-                                    : (e.shiftKey ? -5 : -1);
-                                  nudgeTime(delta);
-                                  // Read new player time after seek settles and write back to input
-                                  setTimeout(() => {
+                            {(() => {
+                              const origEnd = originalSongsRef.current[i]?.endTimestamp ?? null;
+                              const isChanged = origEnd !== null && song.endTimestamp !== origEnd;
+                              const isLocked = lockedEndTimestamps.has(i);
+                              return (<>
+                                <input
+                                  data-testid={`end-timestamp-input-${i}`}
+                                  value={song.endTimestamp || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    updateSong(i, 'endTimestamp', val);
+                                    if (seekDebounceRef.current) clearTimeout(seekDebounceRef.current);
+                                    seekDebounceRef.current = setTimeout(() => {
+                                      if (!previewPlayerRef.current) return;
+                                      const parts = val.trim().split(':').map(Number);
+                                      let secs: number | null = null;
+                                      if (parts.length === 2 && parts.every(n => !isNaN(n))) secs = parts[0] * 60 + parts[1];
+                                      else if (parts.length === 3 && parts.every(n => !isNaN(n))) secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                                      if (secs !== null) previewPlayerRef.current.seekTo(secs, true);
+                                    }, 400);
+                                  }}
+                                  onFocus={() => {
+                                    setActiveSongIndex(i);
+                                    if (song.endSeconds !== null && previewPlayerRef.current) {
+                                      previewPlayerRef.current.seekTo(song.endSeconds, true);
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    if (seekDebounceRef.current) { clearTimeout(seekDebounceRef.current); seekDebounceRef.current = null; }
+                                  }}
+                                  onKeyDown={(e) => {
                                     if (!previewPlayerRef.current) return;
-                                    const t = Math.round(previewPlayerRef.current.getCurrentTime() ?? 0);
-                                    updateSong(i, 'endTimestamp', secondsToTimestamp(t));
-                                  }, 80);
-                                } else if (e.key === ' ') {
-                                  e.preventDefault();
-                                  togglePreviewPlayPause();
-                                }
-                              }}
-                              placeholder="結束"
-                              className="w-[5rem] px-1 py-1 bg-white/50 border border-gray-200 rounded hover:border-gray-300 focus:border-pink-400 focus:outline-none text-sm font-mono text-gray-900 font-bold shrink-0"
-                            />
+                                    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                                      e.preventDefault();
+                                      const delta = e.key === 'ArrowRight'
+                                        ? (e.shiftKey ? 5 : 1)
+                                        : (e.shiftKey ? -5 : -1);
+                                      nudgeTime(delta);
+                                      setTimeout(() => {
+                                        if (!previewPlayerRef.current) return;
+                                        const t = Math.round(previewPlayerRef.current.getCurrentTime() ?? 0);
+                                        updateSong(i, 'endTimestamp', secondsToTimestamp(t));
+                                      }, 80);
+                                    } else if (e.key === ' ') {
+                                      e.preventDefault();
+                                      togglePreviewPlayPause();
+                                    }
+                                  }}
+                                  placeholder="結束"
+                                  className={`w-[5rem] px-1 py-1 border rounded hover:border-gray-300 focus:outline-none text-sm font-mono font-bold shrink-0 transition-colors ${
+                                    isChanged
+                                      ? 'bg-pink-50 border-pink-300 text-pink-700 focus:border-pink-500'
+                                      : 'bg-white/50 border-gray-200 text-gray-900 focus:border-pink-400'
+                                  }`}
+                                />
+                                <button
+                                  onClick={() => toggleLockEndTimestamp(i)}
+                                  title={isLocked ? '已鎖定（點擊解鎖）' : '鎖定結束時間（不隨播放更新）'}
+                                  className={`shrink-0 transition-colors ${isLocked ? 'text-pink-500 hover:text-pink-700' : 'text-gray-300 hover:text-gray-500'}`}
+                                >
+                                  {isLocked ? <Lock size={13} /> : <LockOpen size={13} />}
+                                </button>
+                              </>);
+                            })()}
                             {durationBadge(song.durationSource)}
                           </div>
                           {/* Row 2 (mobile) / continuation (desktop): song name + artist */}
@@ -928,9 +962,19 @@ function DiscoverPageInner() {
                               onChange={(e) => updateSong(i, 'artist', e.target.value)}
                               className="flex-1 min-w-0 px-2 py-1 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-pink-400 focus:outline-none"
                             />
-                            <button onClick={() => resetSong(i)} className="text-gray-400 hover:text-blue-500 shrink-0" title="還原此曲目">
-                              <RotateCcw size={14} />
-                            </button>
+                            {(() => {
+                              const origEnd = originalSongsRef.current[i]?.endTimestamp ?? null;
+                              const isChanged = origEnd !== null && song.endTimestamp !== origEnd;
+                              return (
+                                <button
+                                  onClick={() => resetSong(i)}
+                                  className={`shrink-0 transition-colors ${isChanged ? 'text-pink-400 hover:text-pink-600' : 'text-gray-400 hover:text-blue-500'}`}
+                                  title="還原此曲目"
+                                >
+                                  <RotateCcw size={14} />
+                                </button>
+                              );
+                            })()}
                             <button onClick={() => removeSong(i)} className="text-gray-400 hover:text-red-500 shrink-0">
                               <Trash2 size={14} />
                             </button>
