@@ -378,16 +378,78 @@ Run `npm run test:unit` for Vitest tests in `lib/admin/__tests__/`. These cover 
 
 ### E2E Tests
 
-Playwright tests live in `tests/*.spec.ts`. Key test files:
+Playwright tests live in `tests/*.spec.ts`. All run in Chromium only, with `video: 'on'` and `outputDir: 'test-results'`. Requires the dev server running on `localhost:3000`.
+
+**Core flows:**
 - `tests/e2e-verify.spec.ts` — 3 core flows: fan page playback, admin login, discover import
+- `tests/core-001.spec.ts` — core fan-facing page assertions (catalog rendering, search, filters)
+- `tests/core-002.spec.ts` — additional fan-facing page tests
+- `tests/core-003.spec.ts` — extended fan-facing tests
+
+**Admin dashboard:**
+- `tests/admin-001.spec.ts` — basic admin page navigation and rendering
+- `tests/admin-full.spec.ts` — full admin CRUD workflow
+- `tests/admin-regression.spec.ts` — admin regression tests
+- `tests/admin-stamp.spec.ts` — timestamp marking UI
+
+**Discover page:**
 - `tests/discover-kirali-manual.spec.ts` — import `TGuSYMpwepw` via discover UI
 - `tests/discover-itunes-duration.spec.ts` — iTunes duration badges: manual paste (none badges) + YouTube URL (iTunes/MusicBrainz badges)
-- `tests/discover-preview-player.spec.ts` — 9 tests for the discover page YouTube preview player (layout, iframe load, active row, end-timestamp focus/type/blur/keyboard)
-- `tests/discover-reset-restores-api-timestamp.spec.ts` — verifies reset button restores iTunes/MusicBrainz timestamp after live-sync overwrites it
-- `tests/channel-browser.spec.ts` — 3 tests: fetch streams + navigate to discover, streamer card click auto-loads, invalid URL error
+- `tests/discover-preview-player.spec.ts` — 9 tests for YouTube preview player (layout, iframe load, active row, end-timestamp focus/type/blur/keyboard)
+- `tests/discover-reset-restores-api-timestamp.spec.ts` — reset button restores iTunes/MusicBrainz timestamp after live-sync overwrites it
 - `tests/discover-space-key.spec.ts` — Space key play/pause in discover review step
 - `tests/discover-lock-timestamp.spec.ts` — end-timestamp lock button + auto-lock on pause / auto-unlock on play
-- `tests/core-001.spec.ts` — core fan-facing page assertions
+- `tests/discover-mobile-layout.spec.ts` — discover page mobile responsive layout
+- `tests/discover-pause-sets-end-time.spec.ts` — pausing sets end-timestamp of active song
+- `tests/discover-reset-song.spec.ts` — reset song functionality
+- `tests/discover-song-list-copy.spec.ts` — song list copy block (manual mode)
+- `tests/discover-song-list-copy-youtube.spec.ts` — song list copy block (YouTube URL mode)
+- `tests/discover-copy-block-sync.spec.ts` — copy block stays in sync with edits
+- `tests/admin-discover.spec.ts` — discover page navigation and basic flow
+- `tests/admin-kirali-import.spec.ts` — Kirali import flow via admin
+
+**Channel browser:**
+- `tests/channel-browser.spec.ts` — 3 tests: fetch streams + navigate to discover, streamer card click auto-loads, invalid URL error
+
+**Player & playback:**
+- `tests/play-001.spec.ts` — basic playback tests
+- `tests/play-002.spec.ts` — queue and skip tests
+- `tests/play-003.spec.ts` — shuffle and repeat tests
+- `tests/play-004.spec.ts` — edge case playback tests
+- `tests/now-playing.spec.ts` — now-playing modal/view
+
+**Multi-streamer:**
+- `tests/multi-streamer.spec.ts` — multi-streamer filter and carousel
+- `tests/verify-new-streamer.spec.ts` — new streamer detection in discover
+
+**Other:**
+- `tests/ui-001.spec.ts` — general UI tests
+- `tests/meta-006.spec.ts` — metadata coverage page
+- `tests/admin-api.spec.ts` — admin API/Supabase operations
+- `tests/fix-002.spec.ts`, `tests/fix-007.spec.ts` — regression fix verifications
+- `tests/verify-e2e-kirali-play.spec.ts` — Kirali playback verification
+
+**Debug tests (not committed, gitignored):**
+- `tests/debug-*.spec.ts` — temporary debug/investigation tests
+
+### E2E Testing Patterns
+
+**Common test structure:**
+1. Login: navigate to `/admin/login`, fill password `mizuki-admin`, click login, wait for redirect
+2. Navigate to target page (often with `?url=` query params for auto-triggering)
+3. Wait for async data with `toBeVisible({ timeout: 60000-90000 })` — YouTube API calls can be slow
+4. Assert state via `data-testid` attributes, input values, and element visibility
+5. Screenshots at key steps: `page.screenshot({ path: 'test-results/...' })`
+
+**Timeouts:**
+- `test.setTimeout(120000)` for tests involving YouTube API calls (extraction, channel fetch)
+- Default Playwright timeout for simple navigation tests
+- Element visibility waits: 60-90s for YouTube API-dependent content
+
+**Selectors:**
+- Prefer `data-testid` attributes (e.g., `page.getByTestId('extracted-song-0')`)
+- Fallback to `locator()` with CSS selectors for elements without test IDs (e.g., `songRow.locator('button.font-mono').first()`)
+- Use `page.getByTestId()` over `page.locator('[data-testid=...]')` for readability
 
 ### E2E Video Recording & Verification Flow
 
@@ -398,6 +460,17 @@ When adding or modifying UI features, verify changes with permanent E2E video re
 3. **Run Playwright Test(s)**: Execute the specific E2E test file.
 4. **Export Videos**: Copy `.webm` files from `test-results/` to `videos/`. Rename descriptively.
 5. **Visual Verification**: Use `/verify-video` to send the `.webm` to Gemini CLI for analysis.
+
+### Chrome DevTools MCP for Visual Verification
+
+For quick responsive/layout verification without full Playwright tests:
+1. Use `resize_page` to set viewport (e.g., 375×667 for mobile, 1280×800 for desktop)
+2. Use `navigate_page` to load the target page
+3. Use `take_screenshot` to capture the viewport
+4. Use `take_snapshot` to get the a11y tree for element UIDs
+5. Use `click` with UIDs to interact (e.g., open hamburger menu)
+
+This is faster than writing a Playwright test for one-off visual checks during development.
 
 ### Cache Troubleshooting
 
