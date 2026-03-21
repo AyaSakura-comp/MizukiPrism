@@ -80,6 +80,7 @@ function DiscoverPageInner() {
   // Keep ref in sync so the player interval can read it without stale closure
   useEffect(() => { activeSongIndexRef.current = activeSongIndex; }, [activeSongIndex]);
   const [playerCurrentTime, setPlayerCurrentTime] = useState<number>(0);
+  const reviewFocusTrapRef = useRef<HTMLDivElement>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const prevIsPreviewPlayingRef = useRef(false);
   // Timestamp of last manual toggle — interval skips polling isPreviewPlaying for 1s after toggle
@@ -300,19 +301,32 @@ function DiscoverPageInner() {
     handleFetchVideo(urlParam);
   }, [authenticated, urlParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Global Space key → play/pause in review step (when focus is not in a text input)
+  // Auto-focus review container when entering review step;
+  // attach native keydown listener to prevent Space scroll before React's synthetic handler fires
   useEffect(() => {
     if (step !== 'review' || !videoInfo || videoInfo.videoId.startsWith('manual')) return;
-    function handleKeyDown(e: KeyboardEvent) {
+    const el = reviewFocusTrapRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    function preventSpaceScroll(e: KeyboardEvent) {
       if (e.key !== ' ') return;
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
       e.preventDefault();
-      togglePreviewPlayPause();
     }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [step, videoInfo, isPreviewPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
+    el.addEventListener('keydown', preventSpaceScroll);
+    return () => el.removeEventListener('keydown', preventSpaceScroll);
+  }, [step, videoInfo]);
+
+  function handleReviewKeyDown(e: React.KeyboardEvent) {
+    if (e.key !== ' ') return;
+    const target = e.target as HTMLElement;
+    // Let text inputs use Space normally
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+    // Space always toggles play/pause — prevent default button activation too
+    e.preventDefault();
+    togglePreviewPlayPause();
+  }
 
   // Step 1: Fetch video info
   async function handleFetchVideo(overrideUrl?: string) {
@@ -805,7 +819,19 @@ function DiscoverPageInner() {
         {step === 'review' && videoInfo && (() => {
           const isManual = videoInfo.videoId.startsWith('manual');
           return (
-            <div className={`lg:flex lg:gap-6 space-y-4 lg:space-y-0 ${isManual ? '' : 'lg:items-start'}`}>
+            <div
+              ref={reviewFocusTrapRef}
+              tabIndex={0}
+              className={`lg:flex lg:gap-6 space-y-4 lg:space-y-0 outline-none ${isManual ? '' : 'lg:items-start'}`}
+              onKeyDown={handleReviewKeyDown}
+              onClick={(e) => {
+                // Refocus container when clicking outside inputs/buttons so Space key always works
+                const t = e.target as HTMLElement;
+                if (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA' && t.tagName !== 'BUTTON') {
+                  reviewFocusTrapRef.current?.focus({ preventScroll: true });
+                }
+              }}
+            >
               {/* Left column: YouTube preview player */}
               {!isManual && (
                 <div className="-mx-4 px-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 lg:w-[400px] lg:shrink-0 sticky top-0 lg:top-6 lg:self-start z-10 pb-3 lg:pb-0 bg-pink-50 lg:bg-transparent w-auto">
