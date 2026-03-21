@@ -24,6 +24,7 @@ export default function ChannelBrowserPage() {
   const [videos, setVideos] = useState<ChannelVideo[]>([]);
   const [importedVideoIds, setImportedVideoIds] = useState<Set<string>>(new Set());
   const [streamers, setStreamers] = useState<{ channelId: string; handle: string; displayName: string; avatarUrl: string }[]>([]);
+  const [selectedFromCards, setSelectedFromCards] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated()) { router.replace('/admin/login'); return; }
@@ -58,6 +59,15 @@ export default function ChannelBrowserPage() {
     }
   }
 
+  function handleBackToCards() {
+    setChannel(null);
+    setVideos([]);
+    setUrlInput('');
+    setError(null);
+    setPartialError(null);
+    setSelectedFromCards(false);
+  }
+
   function handleSelectStreamer(channelId: string) {
     const url = `https://www.youtube.com/channel/${channelId}`;
     setUrlInput(url);
@@ -65,6 +75,7 @@ export default function ChannelBrowserPage() {
     setPartialError(null);
     setChannel(null);
     setVideos([]);
+    setSelectedFromCards(true);
     const input = extractChannelInput(url);
     if (!input) return;
     setLoading(true);
@@ -122,7 +133,7 @@ export default function ChannelBrowserPage() {
         </div>
 
         {/* Streamer quick-select */}
-        {streamers.length > 0 && !channel && !loading && (
+        {streamers.length > 0 && !channel && !loading && !selectedFromCards && (
           <div>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">已知頻道</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -164,6 +175,16 @@ export default function ChannelBrowserPage() {
         {/* Channel header */}
         {channel && (
           <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/60 p-4 flex items-center gap-4" data-testid="channel-header">
+            {selectedFromCards && (
+              <button
+                onClick={handleBackToCards}
+                className="shrink-0 flex items-center gap-1 text-sm text-pink-400 hover:text-pink-600 transition-colors"
+                data-testid="back-to-cards-button"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                返回
+              </button>
+            )}
             {channel.avatarUrl && (
               <img src={channel.avatarUrl} alt={channel.displayName} className="w-14 h-14 rounded-full object-cover" />
             )}
