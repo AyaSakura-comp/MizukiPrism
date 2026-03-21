@@ -81,6 +81,9 @@ function DiscoverPageInner() {
   const [playerCurrentTime, setPlayerCurrentTime] = useState<number>(0);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const prevIsPreviewPlayingRef = useRef(false);
+  // Timestamp of last manual toggle — interval skips polling isPreviewPlaying for 1s after toggle
+  // to avoid race: pauseVideo() is async so getPlayerState() may still return 1 briefly after pause
+  const manualToggleTimeRef = useRef<number>(0);
   // Auto-lock active song on pause, auto-unlock on play
   useEffect(() => {
     const wasPlaying = prevIsPreviewPlayingRef.current;
@@ -185,16 +188,33 @@ function DiscoverPageInner() {
                 const t = previewPlayerRef.current.getCurrentTime() ?? 0;
                 setPlayerCurrentTime(t);
                 const state = previewPlayerRef.current.getPlayerState?.();
-                const playing = state === 1;
-                setIsPreviewPlaying(playing);
-                // Continuously sync active song's end-timestamp while playing (skip locked songs)
+                // Treat buffering (3) as "playing" for UI — don't flip to paused just because the
+                // player is buffering. Only flip isPreviewPlaying to false on explicit pause (state 2).
+                const isActuallyPlaying = state === 1;
+                const isPlayingOrBuffering = state === 1 || state === 3;
+                const isExplicitlyPaused = state === 2;
+                // Only update isPreviewPlaying from poll if >1s since last manual toggle,
+                // to avoid race: pauseVideo() is async and getPlayerState() may still return
+                // 1/3 briefly after the call.
+                if (Date.now() - manualToggleTimeRef.current > 1000) {
+                  if (isPlayingOrBuffering) setIsPreviewPlaying(true);
+                  else if (isExplicitlyPaused) setIsPreviewPlaying(false);
+                }
+                // Continuously sync active song's end-timestamp while actually playing (skip locked songs)
                 const idx = activeSongIndexRef.current;
-                if (playing && idx !== null && !lockedEndTimestampsRef.current.has(idx)) {
+                if (isActuallyPlaying && idx !== null && !lockedEndTimestampsRef.current.has(idx)) {
                   const ts = secondsToTimestamp(Math.round(t));
                   setSongs(prev => prev.map((s, i) => i === idx ? { ...s, endTimestamp: ts, endSeconds: Math.round(t) } : s));
                 }
               }
             }, 500);
+          },
+          onStateChange: (e: any) => {
+            if (destroyed) return;
+            // Only flip isPreviewPlaying on definitive states — ignore buffering (3)
+            // so we don't auto-lock when the player briefly buffers mid-playback.
+            if (e.data === 1 || e.data === 3) setIsPreviewPlaying(true);
+            else if (e.data === 2 || e.data === 0) setIsPreviewPlaying(false);
           },
         },
       });
@@ -230,6 +250,8 @@ function DiscoverPageInner() {
     if (previewPlayerRef.current) {
       previewPlayerRef.current.seekTo(seconds, true);
       previewPlayerRef.current.playVideo();
+      manualToggleTimeRef.current = Date.now(); // prevent interval from overriding for 1s
+      setIsPreviewPlaying(true); // player transitions to buffering/playing — update state immediately
     }
     if (songIndex !== undefined) setActiveSongIndex(songIndex);
   }
@@ -243,9 +265,14 @@ function DiscoverPageInner() {
 
   function togglePreviewPlayPause() {
     if (!previewPlayerRef.current) return;
+    manualToggleTimeRef.current = Date.now(); // block interval polling for 1s to avoid race
+    // Read actual player state instead of React state — state can be stale if the interval
+    // hasn't run yet since the player started (e.g. immediately after seekPreview)
+    // Use React state to decide — it is kept in sync by seekPreview/interval/onStateChange
+    // and is more reliable than getPlayerState() which can lag behind UI state
     if (isPreviewPlaying) {
       previewPlayerRef.current.pauseVideo();
-      setIsPreviewPlaying(false); // immediate update so auto-lock fires without waiting for the interval
+      setIsPreviewPlaying(false); // immediate update so auto-lock fires instantly
     } else {
       previewPlayerRef.current.playVideo();
       setIsPreviewPlaying(true);

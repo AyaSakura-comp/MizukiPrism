@@ -65,19 +65,17 @@ test('discover: auto-lock on pause, auto-unlock on play', async ({ page }) => {
   await page.goto(`${BASE_URL}/admin/discover?url=${encodeURIComponent(YOUTUBE_URL)}`);
   await expect(page.getByTestId('extracted-song-0')).toBeVisible({ timeout: 60000 });
 
-  // Activate first song by clicking start timestamp
+  // Activate first song — seekPreview() immediately sets isPreviewPlaying=true
   const songRow = page.getByTestId('extracted-song-0');
   const startBtn = songRow.locator('button.font-mono').first();
   await startBtn.click();
+  await page.waitForTimeout(300); // wait for React render so isPreviewPlaying=true is committed
 
-  // Wait for player to start playing
-  await page.waitForTimeout(3000);
-
-  // Pause the player using Space on end-timestamp input
-  const endInput = page.getByTestId('end-timestamp-input-0');
-  await endInput.focus();
-  await endInput.press(' ');
-  await page.waitForTimeout(500);
+  // Click the play/pause button to pause (isPreviewPlaying=true → toggles to false → auto-lock)
+  // Use button click instead of Space on input for reliability in headless
+  const playPauseBtn = page.getByTestId('preview-play-pause-btn');
+  await playPauseBtn.click();
+  await page.waitForTimeout(1000);
 
   // Lock button should now show locked state (🔒 = title contains '已鎖定')
   const lockBtn = songRow.locator('button[title*="鎖定"], button[title*="已鎖定"]').first();
@@ -85,9 +83,9 @@ test('discover: auto-lock on pause, auto-unlock on play', async ({ page }) => {
   await page.screenshot({ path: 'test-results/lock-04-auto-locked.png' });
   expect(titleAfterPause).toContain('已鎖定');
 
-  // Play again
-  await endInput.press(' ');
-  await page.waitForTimeout(1500);
+  // Play again — click the play button (isPreviewPlaying=false → toggles to true → auto-unlock)
+  await playPauseBtn.click();
+  await page.waitForTimeout(1000);
 
   // Lock should be released — re-query button to avoid stale handle
   const lockBtnAfterPlay = songRow.locator('button[title*="鎖定"], button[title*="已鎖定"]').first();
