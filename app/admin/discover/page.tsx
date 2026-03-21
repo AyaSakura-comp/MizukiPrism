@@ -300,6 +300,20 @@ function DiscoverPageInner() {
     handleFetchVideo(urlParam);
   }, [authenticated, urlParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Global Space key → play/pause in review step (when focus is not in a text input)
+  useEffect(() => {
+    if (step !== 'review' || !videoInfo || videoInfo.videoId.startsWith('manual')) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== ' ') return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      e.preventDefault();
+      togglePreviewPlayPause();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [step, videoInfo, isPreviewPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Step 1: Fetch video info
   async function handleFetchVideo(overrideUrl?: string) {
     const targetUrl = overrideUrl ?? url;
