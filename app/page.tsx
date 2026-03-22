@@ -14,7 +14,7 @@ import CreatePlaylistDialog from './components/CreatePlaylistDialog';
 import AddToPlaylistDropdown from './components/AddToPlaylistDropdown';
 import AlbumArt from './components/AlbumArt';
 import SidebarNav from './components/SidebarNav';
-import { loadSongs, loadMetadata, loadStreams, loadStreamers } from '@/lib/supabase-data';
+import { loadSongs, loadMetadata, loadStreams, loadStreamers, loadSongsByChannel } from '@/lib/supabase-data';
 
 interface Performance {
   id: string;
@@ -57,9 +57,24 @@ const formatTime = (seconds: number): string => {
 
 type ViewMode = 'timeline' | 'grouped';
 
+function mergeSongs(existing: Song[], incoming: Song[]): Song[] {
+  const map = new Map<string, Song>();
+  for (const s of existing) map.set(s.id, { ...s, performances: [...s.performances] });
+  for (const s of incoming) {
+    if (map.has(s.id)) {
+      const existingPerfIds = new Set(map.get(s.id)!.performances.map(p => p.id));
+      const newPerfs = s.performances.filter(p => !existingPerfIds.has(p.id));
+      map.get(s.id)!.performances.push(...newPerfs);
+    } else {
+      map.set(s.id, { ...s, performances: [...s.performances] });
+    }
+  }
+  return Array.from(map.values());
+}
+
 export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [streams, setStreams] = useState<{id:string;title:string;date:string;videoId:string}[]>([]);
+  const [streams, setStreams] = useState<{id:string;title:string;date:string;videoId:string;channelId?:string}[]>([]);
   const [selectedStreamId, setSelectedStreamId] = useState<string | null>(null);
   const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
   const [selectedYears, setSelectedYears] = useState<Set<number>>(new Set());
@@ -76,6 +91,9 @@ export default function Home() {
   const [loadError, setLoadError] = useState(false);
   const [selectedStreamers, setSelectedStreamers] = useState<string[]>([]);
   const [streamers, setStreamers] = useState<{ channelId: string; handle: string; displayName: string; avatarUrl: string; description: string; social_links?: Record<string, string> }[]>([]);
+  const [loadedChannels, setLoadedChannels] = useState<Set<string>>(new Set());
+  const [songsLoading, setSongsLoading] = useState(false);
+  const [failedChannel, setFailedChannel] = useState<string | null>(null);
   // empty array = "All"
 
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
@@ -121,6 +139,27 @@ export default function Home() {
       });
   };
 
+  const loadChannelSongs = async (channelId: string) => {
+    if (loadedChannels.has(channelId)) return;
+    setSongsLoading(true);
+    setFailedChannel(null);
+    try {
+      const channelSongs = await loadSongsByChannel(channelId);
+      const withArt = channelSongs.map(song => ({
+        ...song,
+        albumArtUrl: albumArtMapRef.current.get(song.id),
+      }));
+      setSongs(prev => mergeSongs(prev, withArt));
+      setLoadedChannels(prev => new Set(prev).add(channelId));
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+      setFailedChannel(channelId);
+    } finally {
+      setSongsLoading(false);
+    }
+  };
+
   // Fetch metadata on mount and populate albumArtMap, then fetch songs
   useEffect(() => {
     loadMetadata()
@@ -139,12 +178,12 @@ export default function Home() {
         // metadata fetch failed — continue without art
       })
       .finally(() => {
-        fetchSongs();
+        // Songs are loaded lazily per-streamer — no fetchSongs() here
       });
 
     loadStreams()
       .catch(() => [])
-      .then((data: {id:string;title:string;date:string;videoId:string}[]) => {
+      .then((data: {id:string;title:string;date:string;videoId:string;channelId?:string}[]) => {
         data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setStreams(data);
       })
@@ -159,6 +198,14 @@ export default function Home() {
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-load songs when there's only one streamer
+  useEffect(() => {
+    if (streamers.length === 1 && loadedChannels.size === 0) {
+      loadChannelSongs(streamers[0].channelId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streamers]);
 
   const { currentTrack, playTrack, addToQueue, apiLoadError, unavailableVideoIds, timestampWarning, clearTimestampWarning, skipNotification, clearSkipNotification, shuffleOn, toggleShuffle } = usePlayer();
   const { playlists, storageError, clearStorageError } = usePlaylist();
@@ -276,22 +323,18 @@ export default function Home() {
   const streamChannelMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const s of streams) {
-      if ((s as any).channelId) map.set(s.id, (s as any).channelId);
+      if (s.channelId) map.set(s.id, s.channelId);
     }
     return map;
   }, [streams]);
 
   // Only show streamer filter buttons for streamers that have songs in the catalog
   const streamersWithSongs = useMemo(() => {
-    const channelIdsWithSongs = new Set<string>();
-    for (const song of songs) {
-      for (const perf of song.performances) {
-        const chId = streamChannelMap.get(perf.streamId || '');
-        if (chId) channelIdsWithSongs.add(chId);
-      }
-    }
-    return streamers.filter(s => channelIdsWithSongs.has(s.channelId));
-  }, [streamers, songs, streamChannelMap]);
+    const channelIdsWithStreams = new Set(
+      streams.map(s => s.channelId).filter(Boolean)
+    );
+    return streamers.filter(s => channelIdsWithStreams.has(s.channelId));
+  }, [streamers, streams]);
 
   const filteredStreams = useMemo(() => {
     if (selectedYears.size === 0) return streams;
@@ -689,7 +732,12 @@ export default function Home() {
                     {' '}
                     <span style={{ color: 'var(--text-tertiary)' }}>·</span>
                     {' '}
-                    <span style={{ fontWeight: 600 }}>{flattenedSongs.filter(song => streamChannelMap.get(song.streamId || '') === s.channelId).length} Songs</span>
+                    <span style={{ fontWeight: 600 }}>
+                      {loadedChannels.has(s.channelId)
+                        ? `${flattenedSongs.filter(song => streamChannelMap.get(song.streamId || '') === s.channelId).length} Songs`
+                        : `${streams.filter(st => st.channelId === s.channelId).length} Streams`
+                      }
+                    </span>
                   </p>
 
                   {/* Stats row: followerCount Followers · Rank #rank (rank in accent-pink), centered */}
@@ -1117,6 +1165,10 @@ export default function Home() {
                   key={s.channelId}
                   data-testid={`streamer-filter-${s.channelId}`}
                   onClick={() => {
+                    const isSelected = selectedStreamers.includes(s.channelId);
+                    if (!isSelected) {
+                      loadChannelSongs(s.channelId);
+                    }
                     setSelectedStreamers((prev) =>
                       prev.includes(s.channelId)
                         ? prev.filter((id) => id !== s.channelId)
@@ -1321,6 +1373,40 @@ export default function Home() {
 
           {/* Song List - Conditional Rendering based on View Mode */}
           <div className="px-4 pb-32 mt-2">
+            {/* Landing state — multi-streamer, no songs loaded yet */}
+            {streamersWithSongs.length > 1 && songs.length === 0 && !songsLoading && !loadError && (
+              <div className="text-center py-16" data-testid="lazy-load-landing">
+                <p style={{ color: 'var(--text-secondary)', fontSize: '15px', fontWeight: 500 }}>
+                  選擇頻道來瀏覽歌曲
+                </p>
+                <div className="mt-4 flex justify-center gap-6" style={{ color: 'var(--text-tertiary)', fontSize: '13px' }}>
+                  <span>{streamers.length} 位歌手</span>
+                  <span>·</span>
+                  <span>{streams.length} 場直播</span>
+                  {streams.length > 0 && (
+                    <>
+                      <span>·</span>
+                      <span>最近更新 {streams[0].date}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Loading songs for a streamer */}
+            {songsLoading && (
+              <div className="text-center py-12" data-testid="songs-loading">
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>載入歌曲中...</p>
+              </div>
+            )}
+
+            {/* Search hint when no songs loaded */}
+            {songs.length === 0 && searchTerm !== '' && !songsLoading && !loadError && (
+              <div className="text-center py-12">
+                <p style={{ color: 'var(--text-tertiary)', fontSize: '13px' }}>選擇頻道以搜尋歌曲</p>
+              </div>
+            )}
+
             {loadError ? (
               /* Song API Load Error State */
               <div
@@ -1342,7 +1428,7 @@ export default function Home() {
                 </p>
                 <button
                   data-testid="retry-button"
-                  onClick={fetchSongs}
+                  onClick={() => failedChannel ? loadChannelSongs(failedChannel) : null}
                   className="font-semibold transition-all hover:opacity-90"
                   style={{
                     background: 'linear-gradient(135deg, var(--accent-pink-light), var(--accent-blue-light))',
