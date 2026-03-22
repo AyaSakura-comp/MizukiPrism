@@ -183,6 +183,60 @@ When searching with no loaded songs, show a hint: "選擇頻道以搜尋歌曲".
 - Album art merge logic (metadata map applied when songs load)
 - Supabase schema — no changes needed
 
+### Verification Plan
+
+#### E2E Tests (Playwright)
+
+Test file: `tests/streamer-lazy-load.spec.ts`
+
+**Test 1: Multi-streamer — no songs loaded on mount**
+1. Navigate to fan page
+2. Assert streamer cards are visible
+3. Assert song list is NOT rendered (or shows "選擇頻道來瀏覽歌曲" prompt)
+4. Assert summary stats are visible (stream count, streamer count, latest date)
+
+**Test 2: Click streamer — songs load**
+1. Navigate to fan page
+2. Click a streamer card/button
+3. Wait for songs to appear (loading indicator → song list)
+4. Assert song list is populated with songs from that streamer
+5. Assert hero carousel shows correct song count
+
+**Test 3: Multi-select — accumulate songs**
+1. Click streamer A → songs load
+2. Note song count
+3. Click streamer B → more songs load
+4. Assert total song count increased (songs from both streamers visible)
+
+**Test 4: Deselect all — return to landing**
+1. Click streamer A (songs load)
+2. Deselect streamer A
+3. Assert streamer cards + stats visible again
+4. Assert previously loaded songs re-appear instantly when re-selecting
+
+**Test 5: Single streamer — auto-load**
+- Requires test environment with only 1 streamer in DB (or mock)
+- Assert songs load automatically on mount without user interaction
+
+All tests record video (`video: 'on'` in Playwright config).
+
+#### Visual Verification (Gemini CLI)
+
+After each Playwright test run, use `/verify-video` skill to send the recorded `.webm` to Gemini for visual analysis:
+
+1. Export videos from `test-results/` to `videos/`
+2. Run `/verify-video <video-path> — <expected behavior description>`
+3. Gemini analyzes the video and returns PASS/FAIL with detailed reasoning
+4. Send video + verification result to user via Discord
+
+#### Key Visual Checks
+
+- **Landing state**: Streamer cards visible, no song list, stats shown
+- **Loading state**: Spinner/text appears during fetch, then songs render
+- **Transition**: Smooth transition from loading to song list
+- **Multi-select**: Song list grows when second streamer is selected
+- **Deselect**: Returns to landing state cleanly
+
 ### Edge Cases
 
 - **Song shared across streamers**: Handled by `mergeSongs()` — deduplicates by performance ID, appends new performances to existing song entries.
