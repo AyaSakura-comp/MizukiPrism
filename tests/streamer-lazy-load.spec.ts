@@ -36,8 +36,8 @@ test.describe('streamer lazy load', () => {
     const hasMultiple = await streamerSwitcher.isVisible().catch(() => false);
     if (!hasMultiple) { test.skip(); return; }
 
-    // Click first streamer button (not "All")
-    const firstStreamer = streamerSwitcher.locator('button').nth(1);
+    // Click first streamer button
+    const firstStreamer = streamerSwitcher.locator('button').nth(0);
     await firstStreamer.click();
 
     // Loading indicator may appear briefly
@@ -61,15 +61,15 @@ test.describe('streamer lazy load', () => {
 
     const buttons = streamerSwitcher.locator('button');
     const btnCount = await buttons.count();
-    if (btnCount < 3) { test.skip(); return; }
+    if (btnCount < 2) { test.skip(); return; }
 
     // Click first streamer
-    await buttons.nth(1).click();
+    await buttons.nth(0).click();
     await expect(page.getByTestId('performance-row').first()).toBeVisible({ timeout: 15000 });
     const countAfterFirst = await page.getByTestId('performance-row').count();
 
     // Click second streamer (multi-select)
-    await buttons.nth(2).click();
+    await buttons.nth(1).click();
     // Wait for new songs to load
     await page.waitForTimeout(3000);
     const countAfterSecond = await page.getByTestId('performance-row').count();
@@ -90,18 +90,21 @@ test.describe('streamer lazy load', () => {
 
     // Click first streamer → songs load
     const buttons = streamerSwitcher.locator('button');
-    await buttons.nth(1).click();
+    await buttons.nth(0).click();
     await expect(page.getByTestId('performance-row').first()).toBeVisible({ timeout: 15000 });
     const countBefore = await page.getByTestId('performance-row').count();
     expect(countBefore).toBeGreaterThan(0);
 
-    // Click "All" to deselect
-    await page.getByTestId('streamer-filter-all').click();
+    // Click same streamer again to deselect
+    await buttons.nth(0).click();
     await page.waitForTimeout(500);
 
-    // Songs should still be visible (accumulated in memory, "All" shows everything)
-    const countAfterAll = await page.getByTestId('performance-row').count();
-    expect(countAfterAll).toBeGreaterThanOrEqual(countBefore);
+    // Songs should still be in memory; landing state re-appears since no streamer selected
+    // But loaded songs remain cached for instant re-display when re-selecting
+    await buttons.nth(0).click();
+    await page.waitForTimeout(500);
+    const countAfterReselect = await page.getByTestId('performance-row').count();
+    expect(countAfterReselect).toBeGreaterThanOrEqual(countBefore);
 
     await page.screenshot({ path: 'test-results/lazy-load-04-deselect-all.png' });
   });

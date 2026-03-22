@@ -1144,22 +1144,6 @@ export default function Home() {
           {/* Streamer switcher */}
           {streamersWithSongs.length > 1 && (
             <div data-testid="streamer-switcher" className="flex items-center gap-1.5 flex-wrap px-6" style={{ marginBottom: '8px', marginTop: '8px' }}>
-              <button
-                data-testid="streamer-filter-all"
-                onClick={() => setSelectedStreamers([])}
-                style={{
-                  padding: '4px 12px',
-                  borderRadius: 'var(--radius-pill)',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: selectedStreamers.length === 0 ? 'var(--accent-pink)' : 'var(--bg-surface-frosted)',
-                  color: selectedStreamers.length === 0 ? 'white' : 'var(--text-secondary)',
-                }}
-              >
-                All
-              </button>
               {streamersWithSongs.map((s) => (
                 <button
                   key={s.channelId}
