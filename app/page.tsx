@@ -2258,6 +2258,15 @@ export default function Home() {
                 </div>
                 <p className="font-medium" style={{ color: 'var(--text-secondary)' }}>帳號功能即將推出</p>
                 <p className="text-sm mt-2" style={{ color: 'var(--text-tertiary)' }}>目前可使用播放清單的匯出/匯入功能</p>
+                <a
+                  href="/admin"
+                  className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80"
+                  style={{ background: 'var(--bg-surface-muted)', color: 'var(--text-secondary)', border: '1px solid var(--border-glass)' }}
+                  data-testid="mobile-admin-link"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  管理介面
+                </a>
               </div>
             </div>
           )}

@@ -12,6 +12,7 @@ import {
   Clock,
   Plus,
   ListMusic,
+  Settings,
 } from 'lucide-react';
 
 interface SidebarNavProps {
@@ -252,6 +253,15 @@ export default function SidebarNav({
         className="flex-shrink-0 px-3 py-3 border-t"
         style={{ borderTop: '1px solid var(--border-glass)' }}
       >
+        <Link
+          href="/admin"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-radius-lg font-medium text-sm transition-all hover:bg-white/40"
+          style={{ color: 'var(--text-tertiary)' }}
+          data-testid="admin-link"
+        >
+          <Settings className="w-4 h-4 flex-shrink-0" />
+          管理介面
+        </Link>
         <p className="text-xs mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
           Made with <Heart className="w-3 h-3 inline text-pink-400 fill-current" /> for 浠Mizuki
         </p>
