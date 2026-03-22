@@ -53,6 +53,72 @@ export async function loadSongs(): Promise<Song[]> {
   return Array.from(songMap.values());
 }
 
+/** Load songs for a specific streamer channel, with performances grouped by song */
+export async function loadSongsByChannel(channelId: string): Promise<Song[]> {
+  // Step 1: Get stream IDs for this channel
+  const { data: streamRows, error: streamError } = await supabase
+    .from('streams')
+    .select('id')
+    .eq('channel_id', channelId);
+  if (streamError) throw new Error(`Supabase error: ${streamError.message}`);
+  const streamIds = (streamRows ?? []).map(r => r.id);
+  if (streamIds.length === 0) return [];
+
+  // Step 2: Fetch performances in batches of 50 stream IDs
+  const allPerformances: any[] = [];
+  for (let i = 0; i < streamIds.length; i += 50) {
+    const batch = streamIds.slice(i, i + 50);
+    const { data, error } = await supabase
+      .from('performances')
+      .select(`
+        id,
+        stream_id,
+        date,
+        stream_title,
+        video_id,
+        timestamp_sec,
+        end_timestamp_sec,
+        note,
+        songs (
+          id,
+          title,
+          original_artist,
+          tags
+        )
+      `)
+      .in('stream_id', batch)
+      .order('date', { ascending: false });
+    if (error) throw new Error(`Supabase error: ${error.message}`);
+    allPerformances.push(...(data ?? []));
+  }
+
+  // Step 3: Group by song (same logic as loadSongs)
+  const songMap = new Map<string, Song>();
+  for (const row of allPerformances) {
+    const song = row.songs as unknown as { id: string; title: string; original_artist: string; tags: string[] };
+    if (!songMap.has(song.id)) {
+      songMap.set(song.id, {
+        id: song.id,
+        title: song.title,
+        originalArtist: song.original_artist,
+        tags: song.tags ?? [],
+        performances: [],
+      });
+    }
+    songMap.get(song.id)!.performances.push({
+      id: row.id,
+      streamId: row.stream_id,
+      date: row.date,
+      streamTitle: row.stream_title ?? '',
+      videoId: row.video_id,
+      timestamp: row.timestamp_sec,
+      endTimestamp: row.end_timestamp_sec ?? null,
+      note: row.note ?? '',
+    });
+  }
+  return Array.from(songMap.values());
+}
+
 /** Load all streams from Supabase */
 export async function loadStreams(): Promise<Stream[]> {
   const { data, error } = await supabase
